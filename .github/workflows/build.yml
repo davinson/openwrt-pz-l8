@@ -2,13 +2,13 @@
 # Builds AP and Router modes in parallel, releases together
 #
 # Config organization:
-#   configs/base.config        - shared settings for all variants
-#   configs/variants/<name>    - per-variant package selection
-#   files/<variant>/            - per-variant overlay files (uci-defaults, etc.)
+#   ap/ap.config          - AP mode build config
+#   router/router.config  - Router mode build config
+#   ap/etc/uci-defaults/  - AP mode first-boot scripts
 #
 # To add a new variant:
-#   1. Create configs/variants/<name>.config
-#   2. Create files/<name>/ with any overlay files
+#   1. Create <name>/<name>.config with desired packages
+#   2. Create <name>/etc/uci-defaults/ with any first-boot scripts
 #   3. Add entry to matrix.include below
 
 name: Build OpenWrt for CMCC PZ-L8
@@ -127,10 +127,10 @@ jobs:
 
       - name: Copy mode-specific overlay files
         run: |
-          VARIANT_DIR="$GITHUB_WORKSPACE/files/${{ matrix.mode_lower }}"
-          if [ -d "$VARIANT_DIR" ]; then
-            cp -r "$VARIANT_DIR"/* openwrt/files/
-            echo "=== Copied overlay files from $VARIANT_DIR ==="
+          VARIANT_DIR="$GITHUB_WORKSPACE/${{ matrix.mode_lower }}"
+          if [ -d "$VARIANT_DIR/etc" ]; then
+            cp -r "$VARIANT_DIR/etc" openwrt/files/
+            echo "=== Copied overlay files from $VARIANT_DIR/etc ==="
             find openwrt/files/ -type f | sort
           else
             echo "No overlay files for ${{ matrix.mode }} mode"
@@ -140,7 +140,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-${{ hashFiles('configs/**', 'openwrt/feeds.conf.default') }}
+          key: ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-${{ hashFiles('ap/*', 'router/*', 'openwrt/feeds.conf.default') }}
           restore-keys: |
             ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-
 
@@ -160,9 +160,7 @@ jobs:
       - name: Generate configuration
         working-directory: openwrt
         run: |
-          cat "$GITHUB_WORKSPACE/configs/base.config" \
-              "$GITHUB_WORKSPACE/configs/variants/${{ matrix.mode_lower }}.config" \
-              > .config
+          cp "$GITHUB_WORKSPACE/${{ matrix.mode_lower }}/${{ matrix.mode_lower }}.config" .config
           make defconfig
           make defconfig
 
