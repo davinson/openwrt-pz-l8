@@ -1,6 +1,15 @@
 # GitHub Actions workflow for building OpenWrt firmware for CMCC PZ-L8
-# Builds both AP and Router modes in parallel, releases together
-# Uses main branch with PR #21495 merged
+# Builds AP and Router modes in parallel, releases together
+#
+# Config organization:
+#   configs/base.config        - shared settings for all variants
+#   configs/variants/<name>    - per-variant package selection
+#   files/<variant>/            - per-variant overlay files (uci-defaults, etc.)
+#
+# To add a new variant:
+#   1. Create configs/variants/<name>.config
+#   2. Create files/<name>/ with any overlay files
+#   3. Add entry to matrix.include below
 
 name: Build OpenWrt for CMCC PZ-L8
 
@@ -12,10 +21,17 @@ on:
         required: false
         default: ''
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TARGET: qualcommax
   SUBTARGET: ipq50xx
   DEVICE: cmcc_pz-l8
+  # Pinned commit SHAs (update when upstream changes)
+  PR_21495_SHA: d4286eec1828e4843bceaccc400846854fa46955
+  BDF_COMMIT: f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701
 
 jobs:
   build:
@@ -25,13 +41,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [AP, Router]
+        include:
+          - mode: AP
+            mode_lower: ap
+          - mode: Router
+            mode_lower: router
 
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
         with:
-          # This action removes: android, dotnet, haskell, tool-cache, large-packages
           tool-cache: false
           android: true
           dotnet: true
@@ -40,8 +59,10 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Show disk space
-        run: df -h /
+      - name: Show system info
+        run: |
+          echo "=== Disk ===" && df -h /
+          echo "=== Memory ===" && free -h
 
       - name: Install dependencies
         run: |
@@ -54,6 +75,9 @@ jobs:
             zlib1g-dev file wget curl jq device-tree-compiler \
             ccache libelf-dev libdw-dev libiberty-dev
 
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
       - name: Checkout OpenWrt
         uses: actions/checkout@v4
         with:
@@ -62,55 +86,26 @@ jobs:
           path: openwrt
           fetch-depth: 0
 
-      - name: Merge PR #21495 (AP)
-        if: matrix.mode == 'AP'
+      - name: "Merge PR #21495 and fix caldata"
         working-directory: openwrt
         run: |
           git config user.email "builder@github.com"
           git config user.name "GitHub Actions"
 
-          # PR #21495: PZ-L8 support + ath11k-smallbuffers
-          # Pin to verified commit to avoid breakage if PR author pushes changes
-          git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
+          # Pin PR #21495 to verified commit
+          git fetch origin ${{ env.PR_21495_SHA }} && git checkout FETCH_HEAD -b pr-21495
           git merge pr-21495 --no-edit
 
-          echo "=== Merge status ==="
-          git status --short
-
-          echo "=== PZ-L8 device definition (UbiFit provides factory.ubi) ==="
-          grep -A 15 "define Device/cmcc_pz-l8" target/linux/qualcommax/image/ipq50xx.mk
-
-      - name: Merge PR #21495 (Router)
-        if: matrix.mode == 'Router'
-        working-directory: openwrt
-        run: |
-          git config user.email "builder@github.com"
-          git config user.name "GitHub Actions"
-
-          # PR #21495: PZ-L8 support + ath11k-smallbuffers
-          # Pin to verified commit to avoid breakage if PR author pushes changes
-          git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
-          git merge pr-21495 --no-edit
-
-          echo "=== Merge status ==="
-          git status --short
-
-          echo "=== PZ-L8 device definition (UbiFit provides factory.ubi) ==="
-          grep -A 15 "define Device/cmcc_pz-l8" target/linux/qualcommax/image/ipq50xx.mk
-
-      - name: Fix caldata for PZ-L8 (per review feedback)
-        working-directory: openwrt
-        run: |
-          # Verify PR #21495 pinned commit is present
+          # Verify pinned commit before applying caldata fix
           if ! git log --oneline | grep -q "d4286eec"; then
             echo "ERROR: Pinned PR #21495 commit d4286eec not found. Caldata fix may not apply correctly."
-            echo "Please update the pinned SHA in this workflow."
             exit 1
           fi
 
+          # Apply caldata review fixes
           CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-          chmod +x ../../.github/scripts/fix-caldata.sh
-          ../../.github/scripts/fix-caldata.sh "$CALDATA"
+          chmod +x "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh"
+          "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh" "$CALDATA"
 
       - name: Download BDF files for PZ-L8 WiFi
         working-directory: openwrt
@@ -120,33 +115,34 @@ jobs:
 
           # IPQ5000 (2.4GHz SoC built-in WiFi)
           curl -L -o files/lib/firmware/ath11k/IPQ5018/hw1.0/board-2.bin \
-            "https://github.com/openwrt/firmware_qca-wireless/raw/f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701/board-cmcc_pz-l8.ipq5018"
+            "https://github.com/openwrt/firmware_qca-wireless/raw/${{ env.BDF_COMMIT }}/board-cmcc_pz-l8.ipq5018"
 
           # QCN6102 (5GHz external WiFi module)
           curl -L -o files/lib/firmware/ath11k/QCN6122/hw1.0/board-2.bin \
-            "https://github.com/openwrt/firmware_qca-wireless/raw/f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701/board-cmcc_pz-l8.qcn6122"
+            "https://github.com/openwrt/firmware_qca-wireless/raw/${{ env.BDF_COMMIT }}/board-cmcc_pz-l8.qcn6122"
 
-          echo "=== Downloaded BDF files ==="
+          echo "=== BDF files ==="
           ls -la files/lib/firmware/ath11k/IPQ5018/hw1.0/
           ls -la files/lib/firmware/ath11k/QCN6122/hw1.0/
+
+      - name: Copy mode-specific overlay files
+        run: |
+          VARIANT_DIR="$GITHUB_WORKSPACE/files/${{ matrix.mode_lower }}"
+          if [ -d "$VARIANT_DIR" ]; then
+            cp -r "$VARIANT_DIR"/* openwrt/files/
+            echo "=== Copied overlay files from $VARIANT_DIR ==="
+            find openwrt/files/ -type f | sort
+          else
+            echo "No overlay files for ${{ matrix.mode }} mode"
+          fi
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          # ccache is mode-specific because .config differs
-          key: ccache-${{ env.TARGET }}-${{ matrix.mode }}-v10-${{ hashFiles('openwrt/feeds.conf.default') }}
+          key: ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-${{ hashFiles('configs/**', 'openwrt/feeds.conf.default') }}
           restore-keys: |
-            ccache-${{ env.TARGET }}-${{ matrix.mode }}-v10-
-            ccache-${{ env.TARGET }}-v10-
-
-      - name: Cache toolchain (shared)
-        uses: actions/cache@v4
-        with:
-          path: openwrt/staging_dir
-          # toolchain is shared between AP and Router (same target)
-          key: toolchain-${{ env.TARGET }}-v10-${{ hashFiles('openwrt/include/version.mk') }}
-          restore-keys: toolchain-${{ env.TARGET }}-v10-
+            ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-
 
       - name: Configure ccache
         run: |
@@ -161,215 +157,12 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Create custom files for AP mode
-        if: matrix.mode == 'AP'
+      - name: Generate configuration
         working-directory: openwrt
         run: |
-          mkdir -p files/etc/uci-defaults
-
-          # uci-defaults runs once on first boot, then self-deletes.
-          # On factory flash: overlay is empty -> script runs -> AP config applied.
-          # On sysupgrade (no -n): overlay preserved -> script already deleted -> user config untouched.
-          cat > files/etc/uci-defaults/99-ap-mode-network << 'UCI'
-          #!/bin/sh
-          # Bridge all ports (lan1, lan2, lan3, wan)
-          uci -q delete network.device
-          uci set network.device='device'
-          uci set network.device.name='br-lan'
-          uci set network.device.type='bridge'
-          uci add_list network.device.ports='lan1'
-          uci add_list network.device.ports='lan2'
-          uci add_list network.device.ports='lan3'
-          uci add_list network.device.ports='wan'
-
-          # LAN: DHCP client
-          uci set network.lan='interface'
-          uci set network.lan.device='br-lan'
-          uci set network.lan.proto='dhcp'
-
-          # LAN static fallback
-          uci set network.lan_static='interface'
-          uci set network.lan_static.device='br-lan'
-          uci set network.lan_static.proto='static'
-          uci set network.lan_static.ipaddr='192.168.10.1'
-          uci set network.lan_static.netmask='255.255.255.0'
-
-          # IPv6: accept RA on br-lan, disable forwarding (AP mode)
-          uci set network.lan.ipv6='auto'
-
-          uci commit network
-          exit 0
-          UCI
-          chmod +x files/etc/uci-defaults/99-ap-mode-network
-
-      - name: Generate configuration (AP)
-        if: matrix.mode == 'AP'
-        working-directory: openwrt
-        run: |
-          cat > .config << 'EOF'
-          # Target
-          CONFIG_TARGET_qualcommax=y
-          CONFIG_TARGET_qualcommax_ipq50xx=y
-          CONFIG_TARGET_qualcommax_ipq50xx_DEVICE_cmcc_pz-l8=y
-
-          # Build
-          CONFIG_DEVEL=y
-          CONFIG_CCACHE=y
-          CONFIG_USE_CCACHE=y
-
-          # Image
-          CONFIG_TARGET_ROOTFS_SQUASHFS=y
-          CONFIG_TARGET_IMAGES_GZIP=y
-          CONFIG_INCLUDE_CONFIG=y
-
-          # Kernel
-          CONFIG_KERNEL_CRASHLOG=y
-          CONFIG_KERNEL_SWAP=y
-          CONFIG_KERNEL_DEBUG_FS=y
-
-          # Disable router components
-          CONFIG_PACKAGE_dnsmasq=m
-          CONFIG_PACKAGE_odhcpd=m
-          CONFIG_PACKAGE_odhcpd-ipv6only=m
-          CONFIG_PACKAGE_odhcp6c=m
-          CONFIG_PACKAGE_firewall4=m
-          CONFIG_PACKAGE_nftables=m
-          CONFIG_PACKAGE_kmod-nft-offload=m
-          CONFIG_PACKAGE_ppp=m
-          CONFIG_PACKAGE_ppp-mod-pppoe=m
-          CONFIG_PACKAGE_luci-app-firewall=m
-          CONFIG_PACKAGE_luci-proto-ipv6=m
-          CONFIG_PACKAGE_luci-proto-ppp=m
-
-          # mbedtls
-          CONFIG_PACKAGE_libustream-mbedtls=y
-
-          # WiFi
-          CONFIG_PACKAGE_kmod-ath11k-ahb=y
-          CONFIG_PACKAGE_kmod-ath11k-smallbuffers=y
-          CONFIG_PACKAGE_ath11k-firmware-ipq5018-qcn6122=y
-          CONFIG_PACKAGE_wpad-mesh-mbedtls=y
-
-          # Mesh
-          CONFIG_PACKAGE_usteer=y
-          CONFIG_PACKAGE_luci-app-usteer=y
-
-          # LuCI minimal
-          CONFIG_PACKAGE_luci-base=y
-          CONFIG_PACKAGE_luci-mod-admin-full=y
-          CONFIG_PACKAGE_luci-theme-bootstrap=y
-          CONFIG_PACKAGE_luci-app-package-manager=y
-          CONFIG_PACKAGE_uhttpd=y
-          CONFIG_PACKAGE_uhttpd-mod-ubus=y
-          CONFIG_PACKAGE_luci=m
-
-          # Core
-          CONFIG_PACKAGE_apk-mbedtls=y
-          CONFIG_PACKAGE_base-files=y
-          CONFIG_PACKAGE_ca-bundle=y
-          CONFIG_PACKAGE_dropbear=y
-          CONFIG_PACKAGE_fstools=y
-          CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
-          CONFIG_PACKAGE_kmod-leds-gpio=y
-          CONFIG_PACKAGE_kmod-qca-nss-dp=y
-          CONFIG_PACKAGE_logd=y
-          CONFIG_PACKAGE_mtd=y
-          CONFIG_PACKAGE_netifd=y
-          CONFIG_PACKAGE_procd-ujail=y
-          CONFIG_PACKAGE_uboot-envtools=y
-          CONFIG_PACKAGE_uci=y
-          CONFIG_PACKAGE_urandom-seed=y
-          CONFIG_PACKAGE_urngd=y
-
-          # ZRAM
-          CONFIG_PACKAGE_kmod-zram=y
-          CONFIG_KERNEL_ZRAM_BACKEND_LZO=y
-          CONFIG_KERNEL_ZRAM_BACKEND_ZSTD=y
-          CONFIG_KERNEL_ZRAM_DEF_COMP_LZORLE=y
-          CONFIG_PACKAGE_zram-swap=y
-
-          CONFIG_PACKAGE_iw=y
-          CONFIG_PACKAGE_iwinfo=y
-          EOF
-
-          make defconfig
-          make defconfig
-
-      - name: Generate configuration (Router)
-        if: matrix.mode == 'Router'
-        working-directory: openwrt
-        run: |
-          cat > .config << 'EOF'
-          # Target
-          CONFIG_TARGET_qualcommax=y
-          CONFIG_TARGET_qualcommax_ipq50xx=y
-          CONFIG_TARGET_qualcommax_ipq50xx_DEVICE_cmcc_pz-l8=y
-
-          # Build
-          CONFIG_DEVEL=y
-          CONFIG_CCACHE=y
-          CONFIG_USE_CCACHE=y
-
-          # Image
-          CONFIG_TARGET_ROOTFS_SQUASHFS=y
-          CONFIG_TARGET_IMAGES_GZIP=y
-          CONFIG_INCLUDE_CONFIG=y
-
-          # Kernel
-          CONFIG_KERNEL_CRASHLOG=y
-          CONFIG_KERNEL_SWAP=y
-          CONFIG_KERNEL_DEBUG_FS=y
-
-          # mbedtls
-          CONFIG_PACKAGE_libustream-mbedtls=y
-
-          # WiFi
-          CONFIG_PACKAGE_kmod-ath11k-ahb=y
-          CONFIG_PACKAGE_kmod-ath11k-smallbuffers=y
-          CONFIG_PACKAGE_ath11k-firmware-ipq5018-qcn6122=y
-          CONFIG_PACKAGE_wpad-basic-mbedtls=y
-
-          # LuCI
-          CONFIG_PACKAGE_luci=y
-
-          # Router packages
-          CONFIG_PACKAGE_apk-mbedtls=y
-          CONFIG_PACKAGE_base-files=y
-          CONFIG_PACKAGE_ca-bundle=y
-          CONFIG_PACKAGE_dnsmasq=y
-          CONFIG_PACKAGE_dropbear=y
-          CONFIG_PACKAGE_firewall4=y
-          CONFIG_PACKAGE_fstools=y
-          CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
-          CONFIG_PACKAGE_kmod-leds-gpio=y
-          CONFIG_PACKAGE_kmod-nft-offload=y
-          CONFIG_PACKAGE_kmod-qca-nss-dp=y
-          CONFIG_PACKAGE_logd=y
-          CONFIG_PACKAGE_mtd=y
-          CONFIG_PACKAGE_netifd=y
-          CONFIG_PACKAGE_nftables=y
-          CONFIG_PACKAGE_odhcp6c=y
-          CONFIG_PACKAGE_odhcpd-ipv6only=y
-          CONFIG_PACKAGE_ppp=y
-          CONFIG_PACKAGE_ppp-mod-pppoe=y
-          CONFIG_PACKAGE_procd-ujail=y
-          CONFIG_PACKAGE_uboot-envtools=y
-          CONFIG_PACKAGE_uci=y
-          CONFIG_PACKAGE_uclient-fetch=y
-          CONFIG_PACKAGE_urandom-seed=y
-          CONFIG_PACKAGE_urngd=y
-
-          # ZRAM
-          CONFIG_PACKAGE_kmod-zram=y
-          CONFIG_KERNEL_ZRAM_BACKEND_LZO=y
-          CONFIG_KERNEL_ZRAM_DEF_COMP_ZSTD=y
-          CONFIG_KERNEL_ZRAM_DEF_COMP_LZORLE=y
-          CONFIG_PACKAGE_zram-swap=y
-
-          CONFIG_PACKAGE_iw=y
-          CONFIG_PACKAGE_iwinfo=y
-          EOF
-
+          cat "$GITHUB_WORKSPACE/configs/base.config" \
+              "$GITHUB_WORKSPACE/configs/variants/${{ matrix.mode_lower }}.config" \
+              > .config
           make defconfig
           make defconfig
 
@@ -378,9 +171,7 @@ jobs:
         run: |
           for i in 1 2 3; do
             echo "Download attempt $i/3..."
-            if make download -j$(nproc) V=s; then
-              break
-            fi
+            if make download -j$(nproc) V=s; then break; fi
             [ $i -eq 3 ] && exit 1
             sleep 30
           done
@@ -394,25 +185,20 @@ jobs:
 
       - name: Prepare artifacts
         run: |
+          mkdir -p artifacts
+
           echo "=== Device build output ==="
           find openwrt/bin/targets/qualcommax/ipq50xx/ -maxdepth 1 -type f | sort
 
-          mkdir -p artifacts
-
           echo "=== Copying firmware images ==="
-          cp -v openwrt/bin/targets/qualcommax/ipq50xx/*factory*.ubi artifacts/ || echo "No factory.ubi found"
-          cp -v openwrt/bin/targets/qualcommax/ipq50xx/*sysupgrade*.bin artifacts/ || echo "No sysupgrade.bin found"
-          cp -v openwrt/bin/targets/qualcommax/ipq50xx/sha256sums artifacts/ || true
+          cp -v openwrt/bin/targets/qualcommax/ipq50xx/*factory*.ubi artifacts/ 2>/dev/null || echo "No factory.ubi found"
+          cp -v openwrt/bin/targets/qualcommax/ipq50xx/*sysupgrade*.bin artifacts/ 2>/dev/null || echo "No sysupgrade.bin found"
+          cp -v openwrt/bin/targets/qualcommax/ipq50xx/sha256sums artifacts/ 2>/dev/null || true
 
           cd artifacts
-          echo "=== Artifacts to upload ==="
+          echo "=== Artifacts ==="
           ls -lh
-          echo "=== Generating sha256sums ==="
-          sha256sum * > sha256sums.txt 2>/dev/null || sha256sum *.bin *.ubi > sha256sums.txt 2>/dev/null || true
-          echo "=== Final artifact contents ==="
-          ls -lh
-
-          PATCHES="PR #21495"
+          sha256sum * > sha256sums.txt 2>/dev/null || true
 
           cat > BUILD_INFO.txt << EOF
           Mode: ${{ matrix.mode }}
@@ -420,7 +206,7 @@ jobs:
           Target: ${{ env.TARGET }}/${{ env.SUBTARGET }}
           Device: ${{ env.DEVICE }}
           Branch: main
-          Patches: ${PATCHES}
+          Patches: PR #21495 (${{ env.PR_21495_SHA }})
           EOF
 
       - name: Upload artifacts
@@ -437,6 +223,9 @@ jobs:
     if: inputs.release_tag != ''
 
     steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
       - name: Download AP artifacts
         uses: actions/download-artifact@v4
         with:
@@ -453,7 +242,6 @@ jobs:
         run: |
           mkdir -p release
 
-          # Copy and rename AP files
           for f in artifacts/ap/*-sysupgrade.bin; do
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-sysupgrade-ap.bin"
           done
@@ -461,7 +249,6 @@ jobs:
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-factory-ap.ubi"
           done
 
-          # Copy and rename Router files
           for f in artifacts/router/*-sysupgrade.bin; do
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-sysupgrade-router.bin"
           done
@@ -469,81 +256,8 @@ jobs:
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-factory-router.ubi"
           done
 
-          # Generate sha256sums
           cd release
           sha256sum * > sha256sums
-
-          # Create release notes
-          cat > RELEASE_NOTES.md << 'EOF'
-          ## OpenWrt Firmware for CMCC PZ-L8
-
-          **Branch:** main
-
-          ### Patches
-          - AP: PR #21495 (PZ-L8 support + ath11k-smallbuffers)
-          - Router: PR #21495
-
-          ### Files
-
-          | File | Mode | Description |
-          |------|------|-------------|
-          | `openwrt-pz-l8-factory-ap.ubi` | AP | Factory UBI image (SSH/U-Boot) |
-          | `openwrt-pz-l8-sysupgrade-ap.bin` | AP | Sysupgrade image |
-          | `openwrt-pz-l8-factory-router.ubi` | Router | Factory UBI image (SSH/U-Boot) |
-          | `openwrt-pz-l8-sysupgrade-router.bin` | Router | Sysupgrade image |
-
-          ### AP Mode
-          - All ports bridged (lan1, lan2, lan3, wan)
-          - DHCP client with 192.168.10.1 fallback
-          - 802.11s mesh support + usteer
-          - No firewall, no DHCP server
-
-          ### Router Mode
-          - Full router features
-          - WAN: wan port (DHCP or PPPoE)
-          - LAN: lan1, lan2, lan3 bridged
-          - Firewall, NAT, IPv6 support
-
-          ### Common Features
-          - WiFi: 2.4GHz (IPQ5000) + 5GHz (QCN6102)
-          - Driver: ath11k-smallbuffers (256MB RAM optimized)
-          - ZRAM: lzo-rle (default) / zstd (optional)
-
-          ### ZRAM Compression
-          - Supported: lzo, lzo-rle, zstd
-          - Default: lzo-rle (low CPU usage)
-          - Switch: `echo zstd > /sys/block/zram0/comp_algorithm`
-          - UCI: `option zram_comp_algo zstd`
-
-          ### Installation
-
-          #### Method 1: SSH (from stock firmware)
-          1. Enable SSH on stock firmware
-          2. Upload factory.ubi to /tmp
-          3. Run:
-             ```sh
-             export rootfs=$(cat /proc/mtd | grep rootfs | grep -v _ | cut -d: -f1)
-             ubidetach -f -p /dev/${rootfs}
-             ubiformat /dev/${rootfs} -y -f /tmp/factory.ubi
-             reboot
-             ```
-
-          #### Method 2: U-Boot TFTP
-          1. Place factory.ubi on TFTP server
-          2. Enter U-Boot CLI and run:
-             ```
-             tftpboot <server_ip>:factory.ubi
-             flash rootfs
-             reset
-             ```
-
-          #### Method 3: Sysupgrade (from existing OpenWrt)
-          ```sh
-          sysupgrade /tmp/sysupgrade.bin
-          ```
-          Use `sysupgrade -n` only if you want to reset all settings to defaults.
-          EOF
-
           ls -la
 
       - name: Create release
@@ -551,6 +265,6 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag }}
           files: release/*
-          body_path: release/RELEASE_NOTES.md
+          body_path: .github/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
