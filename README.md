@@ -16,7 +16,6 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router, available in two vari
 | **IPv6** | SLAAC client | Full (odhcp6c + odhcpd) |
 | **Mesh (802.11s)** | ✅ Yes + usteer | ❌ No |
 | **LuCI** | Minimal | Full |
-| **RAM Optimization** | ath11k-smallbuffers | ath11k-smallbuffers |
 
 ## Hardware Specifications
 
@@ -40,7 +39,6 @@ Optimized for access point deployment. All Ethernet ports are bridged together, 
 - **All Ports Bridged** - lan1, lan2, lan3, wan bridged as `br-lan`
 - **Mesh Networking** - 802.11s mesh support with usteer for seamless roaming
 - **IPv6 Support** - Automatic IPv6 address via SLAAC
-- **Low Memory Optimization** - ath11k-smallbuffers driver for 256MB RAM
 - **Minimal Footprint** - No firewall, DHCP, or routing overhead
 
 ### Default Network
@@ -139,9 +137,9 @@ apk add luci-i18n-base-zh-cn luci-i18n-package-manager-zh-cn
 
 ### Patches Applied
 
-| Patch | AP Mode | Router Mode | Description |
-|-------|---------|-------------|-------------|
-| [PR #21495](https://github.com/openwrt/openwrt/pull/21495) | ✅ | ✅ | Device support + ath11k-smallbuffers |
+| Patch | Description |
+|-------|-------------|
+| [PR #21495](https://github.com/openwrt/openwrt/pull/21495) | PZ-L8 device support + ath11k-smallbuffers (optimized WiFi driver for 256MB RAM devices, reduces buffer sizes to lower memory usage) |
 
 ### WiFi Board Data Files
 
