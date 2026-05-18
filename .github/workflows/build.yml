@@ -80,7 +80,7 @@ jobs:
           echo "=== PZ-L8 device definition (UbiFit provides factory.ubi) ==="
           grep -A 15 "define Device/cmcc_pz-l8" target/linux/qualcommax/image/ipq50xx.mk
 
-      - name: Merge PR #21495 + #21496 (Router)
+      - name: Merge PR #21495 (Router)
         if: matrix.mode == 'Router'
         working-directory: openwrt
         run: |
@@ -92,9 +92,7 @@ jobs:
           git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
           git merge pr-21495 --no-edit
 
-          # PR #21496: PHY-to-PHY 2Gbps support
-          git fetch origin pull/21496/head:pr-21496
-          git merge pr-21496 --no-edit
+          # PR #21496 (PHY-to-PHY 2Gbps) already merged to mainline on 2026-04-14
 
           echo "=== Merge status ==="
           git status --short
@@ -512,7 +510,7 @@ jobs:
           if [ "${{ matrix.mode }}" = "AP" ]; then
             PATCHES="PR #21495"
           else
-            PATCHES="PR #21495 + PR #21496 (PHY-to-PHY 2Gbps)"
+            PATCHES="PR #21495 (PHY-to-PHY already in mainline)"
           fi
 
           cat > BUILD_INFO.txt << EOF
@@ -582,7 +580,7 @@ jobs:
 
           ### Patches
           - AP: PR #21495 (PZ-L8 support + ath11k-smallbuffers)
-          - Router: PR #21495 + PR #21496 (PHY-to-PHY 2Gbps)
+          - Router: PR #21495 (PHY-to-PHY 2Gbps already in mainline)
 
           ### Files
 
