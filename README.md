@@ -1,6 +1,6 @@
-# OpenWrt Firmware for CMCC PZ-L8 (with WiFi)
+# OpenWrt Firmware for CMCC PZ-L8
 
-Custom OpenWrt firmware with WiFi support (2.4GHz + 5GHz) for CMCC PZ-L8 router, available in two variants:
+OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router, available in two variants:
 * **AP Mode** for access point deployment
 * **Router Mode** for main router usage
 
@@ -25,7 +25,7 @@ Custom OpenWrt firmware with WiFi support (2.4GHz + 5GHz) for CMCC PZ-L8 router,
 | SoC | Qualcomm IPQ5000 (Dual-core Cortex-A53) |
 | RAM | 256MB |
 | Flash | 128MB NAND |
-| WiFi 2.4GHz | IPQ5000 (SoC built-in) |
+| WiFi 2.4GHz | IPQ5018 |
 | WiFi 5GHz | QCN6102 |
 | Ethernet | 4x Gigabit (lan1, lan2, lan3, wan) |
 
