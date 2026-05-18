@@ -113,44 +113,18 @@ jobs:
           echo "=== Before fix: PZ-L8 entries ==="
           grep -n "cmcc,pz-l8" "$CALDATA"
 
-          python3 << 'PYEOF'
-          import re
+          python3 - "$CALDATA" << 'PYEOF'
+          import sys
 
-          with open("target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata", "r") as f:
+          caldata = sys.argv[1]
+          with open(caldata, "r") as f:
               content = f.read()
 
-          # Fix 1: 2.4GHz — pull cmcc,pz-l8 out of xiaomi,ax6000 group
-          # Before:
-          #   cmcc,pz-l8|\
-          #   xiaomi,ax6000)
-          #       caldata_extract "0:art" 0x1000 0x20000
-          #       ;;
-          # After:
-          #   cmcc,pz-l8)
-          #       caldata_extract "0:art" 0x1000 0x20000
-          #       label_mac=$(mtd_get_mac_binary 0:art 0)
-          #       ath11k_patch_mac $(macaddr_add $label_mac 2) 0
-          #       ath11k_remove_regdomain
-          #       ath11k_set_macflag
-          #       ;;
-          #   xiaomi,ax6000)
-          #       caldata_extract "0:art" 0x1000 0x20000
-          #       ;;
-          old_2g = """\tcmcc,pz-l8|\\
-\txiaomi,ax6000)
-\t\tcaldata_extract "0:art" 0x1000 0x20000
-\t\t;;"""
+          TAB = "\t"
 
-          new_2g = """\tcmcc,pz-l8)
-\t\tcaldata_extract "0:art" 0x1000 0x20000
-\t\tlabel_mac=$(mtd_get_mac_binary 0:art 0)
-\t\tath11k_patch_mac $(macaddr_add $label_mac 2) 0
-\t\tath11k_remove_regdomain
-\t\tath11k_set_macflag
-\t\t;;
-\txiaomi,ax6000)
-\t\tcaldata_extract "0:art" 0x1000 0x20000
-\t\t;;"""
+          # Fix 1: 2.4GHz - pull cmcc,pz-l8 out of xiaomi,ax6000 group
+          old_2g = TAB + 'cmcc,pz-l8|\\\n' + TAB + 'xiaomi,ax6000)\n' + TAB + TAB + 'caldata_extract "0:art" 0x1000 0x20000\n' + TAB + TAB + ';;'
+          new_2g = TAB + 'cmcc,pz-l8)\n' + TAB + TAB + 'caldata_extract "0:art" 0x1000 0x20000\n' + TAB + TAB + 'label_mac=$(mtd_get_mac_binary 0:art 0)\n' + TAB + TAB + 'ath11k_patch_mac $(macaddr_add $label_mac 2) 0\n' + TAB + TAB + 'ath11k_remove_regdomain\n' + TAB + TAB + 'ath11k_set_macflag\n' + TAB + TAB + ';;\n' + TAB + 'xiaomi,ax6000)\n' + TAB + TAB + 'caldata_extract "0:art" 0x1000 0x20000\n' + TAB + TAB + ';;'
 
           if old_2g in content:
               content = content.replace(old_2g, new_2g, 1)
@@ -158,41 +132,17 @@ jobs:
           else:
               print("WARNING: Fix 1 pattern not found (may already be fixed)")
 
-          # Fix 2: 5GHz — correct offset and add MAC patching
-          # Before:
-          #   cmcc,pz-l8)
-          #       caldata_extract "0:art" 0x1000 0x20000
-          #       ;;
-          # (inside the cal-ahb-b00a040.wifi.bin case)
-          # After:
-          #   cmcc,pz-l8)
-          #       caldata_extract "0:art" 0x26800 0x20000
-          #       label_mac=$(mtd_get_mac_binary 0:art 0)
-          #       ath11k_patch_mac $(macaddr_add $label_mac 3) 0
-          #       ath11k_remove_regdomain
-          #       ath11k_set_macflag
-          #       ;;
-          old_5g = """\tcmcc,pz-l8)
-\t\tcaldata_extract "0:art" 0x1000 0x20000
-\t\t;;"""
+          # Fix 2: 5GHz - correct offset and add MAC patching
+          old_5g = TAB + 'cmcc,pz-l8)\n' + TAB + TAB + 'caldata_extract "0:art" 0x1000 0x20000\n' + TAB + TAB + ';;'
+          new_5g = TAB + 'cmcc,pz-l8)\n' + TAB + TAB + 'caldata_extract "0:art" 0x26800 0x20000\n' + TAB + TAB + 'label_mac=$(mtd_get_mac_binary 0:art 0)\n' + TAB + TAB + 'ath11k_patch_mac $(macaddr_add $label_mac 3) 0\n' + TAB + TAB + 'ath11k_remove_regdomain\n' + TAB + TAB + 'ath11k_set_macflag\n' + TAB + TAB + ';;'
 
-          new_5g = """\tcmcc,pz-l8)
-\t\tcaldata_extract "0:art" 0x26800 0x20000
-\t\tlabel_mac=$(mtd_get_mac_binary 0:art 0)
-\t\tath11k_patch_mac $(macaddr_add $label_mac 3) 0
-\t\tath11k_remove_regdomain
-\t\tath11k_set_macflag
-\t\t;;"""
-
-          # Replace only the second occurrence (5GHz case, after 2.4GHz was already changed)
           if content.count(old_5g) >= 1:
-              # After Fix 1, the remaining cmcc,pz-l8) should be the 5GHz one
               content = content.replace(old_5g, new_5g, 1)
               print("Fix 2 applied: 5GHz caldata offset 0x1000 -> 0x26800 + MAC patching")
           else:
               print("WARNING: Fix 2 pattern not found (may already be fixed)")
 
-          with open("target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata", "w") as f:
+          with open(caldata, "w") as f:
               f.write(content)
 
           print("Done.")
