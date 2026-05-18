@@ -92,8 +92,6 @@ jobs:
           git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
           git merge pr-21495 --no-edit
 
-          # PR #21496 (PHY-to-PHY 2Gbps) already merged to mainline on 2026-04-14
-
           echo "=== Merge status ==="
           git status --short
 
@@ -507,11 +505,7 @@ jobs:
           echo "=== Final artifact contents ==="
           ls -lh
 
-          if [ "${{ matrix.mode }}" = "AP" ]; then
-            PATCHES="PR #21495"
-          else
-            PATCHES="PR #21495 (PHY-to-PHY already in mainline)"
-          fi
+          PATCHES="PR #21495"
 
           cat > BUILD_INFO.txt << EOF
           Mode: ${{ matrix.mode }}
@@ -580,7 +574,7 @@ jobs:
 
           ### Patches
           - AP: PR #21495 (PZ-L8 support + ath11k-smallbuffers)
-          - Router: PR #21495 (PHY-to-PHY 2Gbps already in mainline)
+          - Router: PR #21495
 
           ### Files
 
@@ -602,7 +596,6 @@ jobs:
           - WAN: wan port (DHCP or PPPoE)
           - LAN: lan1, lan2, lan3 bridged
           - Firewall, NAT, IPv6 support
-          - PHY-to-PHY 2Gbps hardware offload
 
           ### Common Features
           - WiFi: 2.4GHz (IPQ5000) + 5GHz (QCN6102)
