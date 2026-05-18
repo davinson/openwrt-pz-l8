@@ -135,11 +135,10 @@ apk add luci-i18n-base-zh-cn luci-i18n-package-manager-zh-cn
 
 ## Technical Details
 
-### Patches Applied
+### Patch [PR #21495](https://github.com/openwrt/openwrt/pull/21495)
 
-| Patch | Description |
-|-------|-------------|
-| [PR #21495](https://github.com/openwrt/openwrt/pull/21495) | PZ-L8 device support + ath11k-smallbuffers (optimized WiFi driver for 256MB RAM devices, reduces buffer sizes to lower memory usage) |
+- CMCC PZ-L8 device support
+- ath11k-smallbuffers: optimized WiFi driver for 256MB RAM devices, reduces buffer sizes to lower memory usage
 
 ### WiFi Board Data Files
 
@@ -199,12 +198,6 @@ free -m
 ```
 
 ---
-
-## Credits
-
-- OpenWrt Project - https://openwrt.org
-- [PR #21495](https://github.com/openwrt/openwrt/pull/21495) contributors - Device support + ath11k-smallbuffers
-- [firmware_qca-wireless PR #106](https://github.com/openwrt/firmware_qca-wireless/pull/106) by sqliuchang - WiFi board data files (BDF)
 
 ## License
 
