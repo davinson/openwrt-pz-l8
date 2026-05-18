@@ -154,56 +154,41 @@ jobs:
         working-directory: openwrt
         run: |
           mkdir -p files/etc/uci-defaults
-          mkdir -p files/etc/config
 
-          cat > files/etc/config/network << 'EOF'
-          config interface 'loopback'
-              option device 'lo'
-              option proto 'static'
-              option ipaddr '127.0.0.1'
-              option netmask '255.0.0.0'
-
-          config device
-              option name 'br-lan'
-              option type 'bridge'
-              list ports 'lan1'
-              list ports 'lan2'
-              list ports 'lan3'
-              list ports 'wan'
-
-          config interface 'lan'
-              option device 'br-lan'
-              option proto 'dhcp'
-
-          config interface 'lan_static'
-              option device 'br-lan'
-              option proto 'static'
-              option ipaddr '192.168.10.1'
-              option netmask '255.255.255.0'
-          EOF
-
+          # uci-defaults runs once on first boot, then self-deletes.
+          # On factory flash: overlay is empty -> script runs -> AP config applied.
+          # On sysupgrade (no -n): overlay preserved -> script already deleted -> user config untouched.
           cat > files/etc/uci-defaults/99-ap-mode-network << 'UCI'
           #!/bin/sh
+          # Bridge all ports (lan1, lan2, lan3, wan)
+          uci -q delete network.device
+          uci set network.device='device'
+          uci set network.device.name='br-lan'
+          uci set network.device.type='bridge'
+          uci add_list network.device.ports='lan1'
+          uci add_list network.device.ports='lan2'
+          uci add_list network.device.ports='lan3'
+          uci add_list network.device.ports='wan'
+
+          # LAN: DHCP client
           uci set network.lan='interface'
           uci set network.lan.device='br-lan'
           uci set network.lan.proto='dhcp'
+
+          # LAN static fallback
           uci set network.lan_static='interface'
           uci set network.lan_static.device='br-lan'
           uci set network.lan_static.proto='static'
           uci set network.lan_static.ipaddr='192.168.10.1'
           uci set network.lan_static.netmask='255.255.255.0'
+
+          # IPv6: accept RA on br-lan, disable forwarding (AP mode)
+          uci set network.lan.ipv6='auto'
+
           uci commit network
           exit 0
           UCI
           chmod +x files/etc/uci-defaults/99-ap-mode-network
-
-          mkdir -p files/etc/sysctl.d
-          cat > files/etc/sysctl.d/99-ipv6-ap.conf << 'EOF'
-          net.ipv6.conf.br-lan.accept_ra = 2
-          net.ipv6.conf.br-lan.forwarding = 0
-          net.ipv6.conf.default.accept_ra = 2
-          net.ipv6.conf.default.forwarding = 0
-          EOF
 
       - name: Generate configuration (AP)
         if: matrix.mode == 'AP'
@@ -547,8 +532,10 @@ jobs:
 
           #### Method 3: Sysupgrade (from existing OpenWrt)
           ```sh
-          sysupgrade -n /tmp/sysupgrade.bin
+          sysupgrade /tmp/sysupgrade.bin
           ```
+
+          **Note:** Do NOT use `-n` flag, otherwise your configuration will be wiped.
           EOF
 
           ls -la
