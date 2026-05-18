@@ -22,10 +22,10 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router, available in two vari
 
 | Component | Specification |
 |-----------|---------------|
-| SoC | Qualcomm IPQ5000 (Dual-core Cortex-A53) |
+| SoC | Qualcomm IPQ5018 (Dual-core Cortex-A53) |
 | RAM | 256MB |
 | Flash | 128MB NAND |
-| WiFi 2.4GHz | IPQ5018 |
+| WiFi 2.4GHz | IPQ5018 (SoC build-in) |
 | WiFi 5GHz | QCN6102 |
 | Ethernet | 4x Gigabit (lan1, lan2, lan3, wan) |
 
