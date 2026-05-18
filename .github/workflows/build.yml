@@ -70,7 +70,8 @@ jobs:
           git config user.name "GitHub Actions"
 
           # PR #21495: PZ-L8 support + ath11k-smallbuffers
-          git fetch origin pull/21495/head:pr-21495
+          # Pin to verified commit to avoid breakage if PR author pushes changes
+          git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
           git merge pr-21495 --no-edit
 
           echo "=== Merge status ==="
@@ -87,7 +88,8 @@ jobs:
           git config user.name "GitHub Actions"
 
           # PR #21495: PZ-L8 support + ath11k-smallbuffers
-          git fetch origin pull/21495/head:pr-21495
+          # Pin to verified commit to avoid breakage if PR author pushes changes
+          git fetch origin d4286eec1828e4843bceaccc400846854fa46955 && git checkout FETCH_HEAD -b pr-21495
           git merge pr-21495 --no-edit
 
           # PR #21496: PHY-to-PHY 2Gbps support
@@ -103,6 +105,13 @@ jobs:
       - name: Fix caldata for PZ-L8 (per review feedback)
         working-directory: openwrt
         run: |
+          # Verify PR #21495 pinned commit is present
+          if ! git log --oneline | grep -q "d4286eec"; then
+            echo "ERROR: Pinned PR #21495 commit d4286eec not found. Caldata fix may not apply correctly."
+            echo "Please update the pinned SHA in this workflow."
+            exit 1
+          fi
+
           CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
 
           echo "=== Before fix: PZ-L8 entries ==="
