@@ -163,7 +163,7 @@ router/
   release-notes.md            # Release notes template
 ```
 
-### For Forks and Custom Variants
+### Custom Variant
 
 To add a new build variant (e.g., "Server" mode):
 
@@ -181,8 +181,6 @@ matrix:
     - mode: Server        # <-- add this
       mode_lower: server
 ```
-
-Each variant's `.config` is self-contained (no shared base). To customize packages for an existing variant, edit its config file directly under `ap/` or `router/`.
 
 ---
 
