@@ -92,17 +92,25 @@ jobs:
           git config user.email "builder@github.com"
           git config user.name "GitHub Actions"
 
-          # Pin PR #21495 to verified commit
-          git fetch origin ${{ env.PR_21495_SHA }} && git checkout FETCH_HEAD -b pr-21495
-          git merge pr-21495 --no-edit
+          # Fetch and merge PR #21495 into main (stay on main, don't checkout PR branch)
+          git fetch origin ${{ env.PR_21495_SHA }}
+          if ! git merge FETCH_HEAD --no-edit; then
+            echo "=== Merge conflicts detected (expected for caldata) ==="
+            CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
+            # Take main's caldata (has latest device entries), fix-caldata.sh will insert PZ-L8
+            git checkout --ours "$CALDATA"
+            git add "$CALDATA"
+            git commit --no-edit --no-verify
+            echo "=== Caldata conflict resolved (using main version) ==="
+          fi
 
-          # Verify pinned commit before applying caldata fix
+          # Verify pinned commit is in history
           if ! git log --oneline | grep -q "d4286eec"; then
-            echo "ERROR: Pinned PR #21495 commit d4286eec not found. Caldata fix may not apply correctly."
+            echo "ERROR: Pinned PR #21495 commit d4286eec not found."
             exit 1
           fi
 
-          # Apply caldata review fixes
+          # Insert PZ-L8 caldata entries with review-approved settings
           CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
           chmod +x "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh"
           "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh" "$CALDATA"
