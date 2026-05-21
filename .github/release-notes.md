@@ -1,10 +1,12 @@
 ## OpenWrt Firmware for CMCC PZ-L8
 
-**Branch:** main
+OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router.
 
 ### Patches
 
-- [PR #21495](https://github.com/openwrt/openwrt/pull/21495) (PZ-L8 device support + ath11k-smallbuffers)
+- [PR #21495](https://github.com/openwrt/openwrt/pull/21495) PZ-L8 device support + ath11k-smallbuffers
+- [FM25LS01 Support](https://github.com/immortalwrt/immortalwrt/blob/cec44a8d851230dff1807d616f264593f4fa13ae/target/linux/generic/hack-6.12/400-mtd-spinand-Support-fmsh.patch#L187-L195) Later batches (V2) use the Shanghai Fudan Microelectronics FM25LS01 SPI NAND flash chip instead of the ESMT F50D1G41LB used in earlier batches.
+- [WiFi Board Data Files](https://github.com/openwrt/firmware_qca-wireless/pull/106) Extracted from official CMCC PZ-L8 firmware 501.11.
 
 ### Files
 
