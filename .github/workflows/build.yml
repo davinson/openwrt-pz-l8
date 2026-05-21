@@ -115,6 +115,27 @@ jobs:
           chmod +x "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh"
           "$GITHUB_WORKSPACE/.github/scripts/fix-caldata.sh" "$CALDATA"
 
+      - name: "Add FM25LS01 SPI NAND support (V2 hardware)"
+        working-directory: openwrt
+        run: |
+          # Copy FM25LS01 patch to generic backport directory so it gets
+          # applied automatically during kernel source preparation.
+          # This adds support for the FMSH FM25LS01 SPI NAND flash chip used
+          # in later revisions (V2) of the CMCC PZ-L8 router.
+          PATCH_DIR=target/linux/generic/backport-6.12
+          PATCH_SRC="$GITHUB_WORKSPACE/patches/add-fm25ls01-support.patch"
+          PATCH_DST="$PATCH_DIR/440-v6.12-mtd-spinand-add-support-for-FudanMicro-FM25LS01.patch"
+
+          if [ ! -f "$PATCH_SRC" ]; then
+            echo "ERROR: FM25LS01 patch not found at $PATCH_SRC"
+            exit 1
+          fi
+
+          cp "$PATCH_SRC" "$PATCH_DST"
+          echo "=== FM25LS01 patch installed ==="
+          echo "Path: $PATCH_DST"
+          ls -la "$PATCH_DST"
+
       - name: Download BDF files for PZ-L8 WiFi
         working-directory: openwrt
         run: |
@@ -148,9 +169,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-${{ hashFiles('ap/*', 'router/*', 'openwrt/feeds.conf.default') }}
+          key: ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v12-${{ hashFiles('ap/*', 'router/*', 'openwrt/feeds.conf.default', 'patches/*') }}
           restore-keys: |
-            ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v11-
+            ccache-${{ env.TARGET }}-${{ matrix.mode_lower }}-v12-
 
       - name: Configure ccache
         run: |
@@ -212,7 +233,7 @@ jobs:
           Target: ${{ env.TARGET }}/${{ env.SUBTARGET }}
           Device: ${{ env.DEVICE }}
           Branch: main
-          Patches: PR #21495 (${{ env.PR_21495_SHA }})
+          Patches: PR #21495 (${{ env.PR_21495_SHA }}), FM25LS01 SPI NAND
           EOF
 
       - name: Upload artifacts
