@@ -140,9 +140,11 @@ apk add luci-i18n-base-zh-cn luci-i18n-package-manager-zh-cn
 - CMCC PZ-L8 device support
 - ath11k-smallbuffers: optimized WiFi driver for 256MB RAM devices, reduces buffer sizes to lower memory usage
 
-### Patch FM25LS01 SPI NAND Support
+### Patch FM25LS01 Support
 
-Later batches (V2) of the CMCC PZ-L8 use the FMSH FM25LS01 SPI NAND flash chip instead of the ESMT F50D1G41LB used in earlier batches. The FM25LS01 driver is not yet included in the upstream Linux kernel or OpenWrt. This project adds support via a patch adapted from [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/blob/cec44a8d851230dff1807d616f264593f4fa13ae/target/linux/generic/hack-6.12/400-mtd-spinand-Support-fmsh.patch#L187-L195).
+Later batches (V2) of the CMCC PZ-L8 use the Shanghai Fudan Microelectronics (FMSH) FM25LS01 SPI NAND flash chip instead of the ESMT F50D1G41LB used in earlier batches. 
+The FM25LS01 driver is not yet included in the upstream Linux kernel or OpenWrt. 
+This project adds support via a patch adapted from [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/blob/cec44a8d851230dff1807d616f264593f4fa13ae/target/linux/generic/hack-6.12/400-mtd-spinand-Support-fmsh.patch#L187-L195).
 
 | Specification | Value |
 |---------------|-------|
