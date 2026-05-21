@@ -123,7 +123,7 @@ jobs:
           # This adds support for the FMSH FM25LS01 SPI NAND flash chip used
           # in later revisions (V2) of the CMCC PZ-L8 router.
           PATCH_DIR=target/linux/generic/backport-6.12
-          PATCH_SRC="$GITHUB_WORKSPACE/patches/add-fm25ls01-support.patch"
+          PATCH_SRC="$GITHUB_WORKSPACE/.github/scripts/add-fm25ls01-support.patch"
           PATCH_DST="$PATCH_DIR/440-v6.12-mtd-spinand-add-support-for-FudanMicro-FM25LS01.patch"
 
           if [ ! -f "$PATCH_SRC" ]; then
