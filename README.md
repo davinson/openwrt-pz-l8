@@ -153,22 +153,27 @@ apk add luci-i18n-base-zh-cn luci-i18n-package-manager-zh-cn
 ## Project Structure
 
 ```
-ap/
-  ap.config                   # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
-  etc/uci-defaults/           # AP mode first-boot scripts (self-delete after run)
-router/
-  router.config               # Router mode: full build config (target, WiFi, firewall, full LuCI)
+variants/
+  ap/
+    ap.config                   # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
+    etc/uci-defaults/           # AP mode first-boot scripts (self-delete after run)
+  router/
+    router.config               # Router mode: full build config (target, WiFi, firewall, full LuCI)
+scripts/
+  fix-caldata.sh                # Caldata fix for PR #21495 review feedback
+patches/
+  add-fm25ls01-support.patch    # FM25LS01 SPI NAND support for V2 hardware
 .github/
-  scripts/fix-caldata.sh      # Caldata fix for PR #21495 review feedback
-  release-notes.md            # Release notes template
+  workflows/build.yml           # CI build workflow
+  release-notes.md              # Release notes template
 ```
 
 ### Custom Variant
 
 To add a new build variant (e.g., "Server" mode):
 
-1. Create `server/server.config` with the desired packages (copy an existing config as template)
-2. Create `server/etc/uci-defaults/` with any first-boot scripts
+1. Create `variants/server/server.config` with the desired packages (copy an existing config as template)
+2. Create `variants/server/etc/uci-defaults/` with any first-boot scripts
 3. Add an entry to the build matrix in `.github/workflows/build.yml`:
 
 ```yaml
