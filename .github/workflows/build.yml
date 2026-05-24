@@ -222,6 +222,7 @@ jobs:
           echo "=== Copying firmware images ==="
           cp -v openwrt/bin/targets/qualcommax/ipq50xx/*factory*.ubi artifacts/ 2>/dev/null || echo "No factory.ubi found"
           cp -v openwrt/bin/targets/qualcommax/ipq50xx/*sysupgrade*.bin artifacts/ 2>/dev/null || echo "No sysupgrade.bin found"
+          cp -v openwrt/bin/targets/qualcommax/ipq50xx/*initramfs*.itb artifacts/ 2>/dev/null || echo "No initramfs found"
           cp -v openwrt/bin/targets/qualcommax/ipq50xx/sha256sums artifacts/ 2>/dev/null || true
 
           cd artifacts
@@ -277,12 +278,18 @@ jobs:
           for f in artifacts/ap/*-factory.ubi; do
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-factory-ap.ubi"
           done
+          for f in artifacts/ap/*-initramfs*.itb; do
+            [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-initramfs-ap.itb"
+          done
 
           for f in artifacts/router/*-sysupgrade.bin; do
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-sysupgrade-router.bin"
           done
           for f in artifacts/router/*-factory.ubi; do
             [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-factory-router.ubi"
+          done
+          for f in artifacts/router/*-initramfs*.itb; do
+            [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-initramfs-router.itb"
           done
 
           cd release
