@@ -1,7 +1,8 @@
 #!/bin/sh
-# uci-defaults runs once on first boot, then self-deletes.
-# On factory flash: overlay is empty -> script runs -> AP config applied.
-# On sysupgrade (no -n): overlay preserved -> script already deleted -> user config untouched.
+# uci-defaults: AP mode network configuration
+# Self-deletes via rm (creates overlayfs whiteout).
+# Whiteout path is added to sysupgrade.conf so the deletion
+# state survives sysupgrade, preserving user modifications.
 
 # Bridge all ports (lan1, lan2, lan3, wan)
 uci -q delete network.device
@@ -29,4 +30,10 @@ uci set network.lan_static.netmask='255.255.255.0'
 uci set network.lan.ipv6='auto'
 
 uci commit network
+
+# Self-delete and preserve whiteout across sysupgrade
+rm "$0"
+WHITOUT="/etc/uci-defaults/.wh.$(basename "$0")"
+grep -qx "$WHITOUT" /etc/sysupgrade.conf 2>/dev/null || echo "$WHITOUT" >> /etc/sysupgrade.conf
+
 exit 0
