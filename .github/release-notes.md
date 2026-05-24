@@ -12,12 +12,12 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router.
 
 | File | Mode | Description |
 |------|------|-------------|
+| `openwrt-pz-l8-initramfs-ap.itb` | AP | Initramfs FIT image (TFTP boot) |
 | `openwrt-pz-l8-factory-ap.ubi` | AP | Factory UBI image (SSH/U-Boot) |
 | `openwrt-pz-l8-sysupgrade-ap.bin` | AP | Sysupgrade image |
-| `openwrt-pz-l8-initramfs-ap.itb` | AP | Initramfs FIT image (TFTP boot) |
+| `openwrt-pz-l8-initramfs-router.itb` | Router | Initramfs FIT image (TFTP boot) |
 | `openwrt-pz-l8-factory-router.ubi` | Router | Factory UBI image (SSH/U-Boot) |
 | `openwrt-pz-l8-sysupgrade-router.bin` | Router | Sysupgrade image |
-| `openwrt-pz-l8-initramfs-router.itb` | Router | Initramfs FIT image (TFTP boot) |
 
 ### AP Mode
 
@@ -51,7 +51,7 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router.
 #### Method 1: SSH (from stock firmware)
 
 1. Enable SSH on stock firmware
-2. Upload factory.ubi to /tmp
+2. Upload `factory.ubi` to `/tmp`
 3. Run:
    ```sh
    export rootfs=$(cat /proc/mtd | grep rootfs | grep -v _ | cut -d: -f1)
@@ -61,10 +61,11 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router.
    ```
 
 #### Method 2: U-Boot TFTP
+> **Note:** Requires a serial (UART) connection to enter U-Boot CLI.
 
-**2a. Direct flash (V1 hardware / ESMT NAND)**
+**2a. Direct flash**
 
-1. Place factory.ubi on TFTP server
+1. Place `factory.ubi` on TFTP server
 2. Enter U-Boot CLI and run:
    ```
    tftpboot <server_ip>:factory.ubi
@@ -72,25 +73,19 @@ OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router.
    reset
    ```
 
-**2b. Boot initramfs then sysupgrade (V2 hardware / FM25LS01 NAND)**
+**2b. Boot initramfs then sysupgrade**
 
-If you get ECC errors after flashing, your device likely uses the FM25LS01 NAND chip (V2 hardware). The stock firmware's ECC configuration may differ from OpenWrt's, causing UBI read failures. To resolve this, boot an initramfs image directly into RAM via TFTP, then sysupgrade from within OpenWrt so that `ubiformat` uses OpenWrt's ECC to reformat the partition.
-
-1. Place initramfs-ap.itb (or initramfs-router.itb) on TFTP server
+1. Place `initramfs.itb` on TFTP server
 2. Enter U-Boot CLI and run:
    ```
-   tftpboot <server_ip>:initramfs-ap.itb
+   tftpboot <server_ip>:initramfs.itb
    bootm
    ```
-3. OpenWrt will boot into RAM (initramfs mode). Find the initramfs IP address from the serial console or connect a device to any LAN port and access 192.168.1.1.
-4. Upload the sysupgrade.bin (or factory.ubi) to /tmp on the initramfs system
-5. Run:
+3. Upload the `sysupgrade.bin` to `/tmp` on the initramfs system
+4. Run:
    ```sh
    sysupgrade /tmp/sysupgrade.bin
    ```
-6. After sysupgrade completes, the device will reboot into a properly formatted OpenWrt installation.
-
-> **Note:** This method requires a serial (UART) connection to enter U-Boot CLI and to see the initramfs boot log.
 
 #### Method 3: Sysupgrade (from existing OpenWrt)
 
@@ -116,12 +111,12 @@ Use `sysupgrade -n` only if you want to reset all settings to defaults.
 
 | 文件 | 模式 | 说明 |
 |------|------|------|
+| `openwrt-pz-l8-initramfs-ap.itb` | AP | Initramfs FIT 镜像（TFTP 启动） |
 | `openwrt-pz-l8-factory-ap.ubi` | AP | 出厂 UBI 镜像（SSH/U-Boot 刷写） |
 | `openwrt-pz-l8-sysupgrade-ap.bin` | AP | 升级镜像 |
-| `openwrt-pz-l8-initramfs-ap.itb` | AP | Initramfs FIT 镜像（TFTP 启动） |
+| `openwrt-pz-l8-initramfs-router.itb` | 路由 | Initramfs FIT 镜像（TFTP 启动） |
 | `openwrt-pz-l8-factory-router.ubi` | 路由 | 出厂 UBI 镜像（SSH/U-Boot 刷写） |
 | `openwrt-pz-l8-sysupgrade-router.bin` | 路由 | 升级镜像 |
-| `openwrt-pz-l8-initramfs-router.itb` | 路由 | Initramfs FIT 镜像（TFTP 启动） |
 
 ### AP 模式
 
@@ -153,9 +148,10 @@ Use `sysupgrade -n` only if you want to reset all settings to defaults.
 ### 安装
 
 #### 方式一：SSH（从原厂固件）
+> **注意：** 需要串口（UART）连接以进入 U-Boot 命令行。
 
 1. 在原厂固件上启用 SSH
-2. 上传 factory.ubi 到 /tmp
+2. 上传 `factory.ubi` 到 `/tmp`
 3. 执行：
    ```sh
    export rootfs=$(cat /proc/mtd | grep rootfs | grep -v _ | cut -d: -f1)
@@ -166,9 +162,9 @@ Use `sysupgrade -n` only if you want to reset all settings to defaults.
 
 #### 方式二：U-Boot TFTP
 
-**2a. 直接刷入（V1 硬件 / ESMT NAND）**
+**2a. 直接刷入**
 
-1. 将 factory.ubi 放到 TFTP 服务器
+1. 将 `factory.ubi` 放到 TFTP 服务器
 2. 进入 U-Boot 命令行并执行：
    ```
    tftpboot <server_ip>:factory.ubi
@@ -176,25 +172,19 @@ Use `sysupgrade -n` only if you want to reset all settings to defaults.
    reset
    ```
 
-**2b. 启动 initramfs 后 sysupgrade（V2 硬件 / FM25LS01 NAND）**
+**2b. 启动 initramfs 后 sysupgrade**
 
-如果刷入后出现 ECC 错误，你的设备可能使用了 FM25LS01 NAND 芯片（V2 硬件）。原厂固件的 ECC 配置与 OpenWrt 不同，导致 UBI 读取失败。解决方法是通过 TFTP 将 initramfs 镜像直接启动到内存中，然后在 OpenWrt 环境下执行 sysupgrade，使 `ubiformat` 使用 OpenWrt 的 ECC 配置重新格式化分区。
-
-1. 将 initramfs-ap.itb（或 initramfs-router.itb）放到 TFTP 服务器
+1. 将 `initramfs.itb` 放到 TFTP 服务器
 2. 进入 U-Boot 命令行并执行：
    ```
-   tftpboot <server_ip>:initramfs-ap.itb
+   tftpboot <server_ip>:initramfs.itb
    bootm
    ```
-3. OpenWrt 将以 initramfs 模式启动到内存中。通过串口控制台查看 IP 地址，或将设备连接到任意 LAN 口后访问 192.168.1.1。
-4. 将 sysupgrade.bin（或 factory.ubi）上传到 initramfs 系统的 /tmp 目录
-5. 执行：
+3. 将 `sysupgrade.bin` 上传到 initramfs 系统的 `/tmp` 目录
+4. 执行：
    ```sh
    sysupgrade /tmp/sysupgrade.bin
    ```
-6. sysupgrade 完成后，设备将重启进入已正确格式化的 OpenWrt 系统。
-
-> **注意：** 此方法需要串口（UART）连接，用于进入 U-Boot 命令行和查看 initramfs 启动日志。
 
 #### 方式三：Sysupgrade（从已有 OpenWrt）
 
