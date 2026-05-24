@@ -1,6 +1,6 @@
 # OpenWrt Firmware for CMCC PZ-L8
 
-[中文文档](README.Zh-Hans.md)
+[简体中文](README.zh-Hans.md)
 
 OpenWrt firmware with Wi-Fi support for CMCC PZ-L8 router, available in two variants:
 * **AP Mode** for access point deployment
