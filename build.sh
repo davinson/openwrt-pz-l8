@@ -295,8 +295,9 @@ merge_pr_and_fix_caldata() {
         echo "=== Caldata conflict resolved (using main version) ==="
     fi
 
-    if ! git log --oneline | grep -q "$(echo $PR_21495_SHA | cut -c1-8)"; then
-        echo "ERROR: Pinned PR #21495 commit $PR_21495_SHA not found."
+    # Verify the PR commit is reachable in the current history
+    if ! git rev-parse --verify "$PR_21495_SHA^{commit}" >/dev/null 2>&1; then
+        echo "ERROR: Pinned PR #21495 commit $PR_21495_SHA not reachable."
         exit 1
     fi
 
