@@ -76,6 +76,53 @@
 
 ---
 
+## 本地编译
+
+无需 GitHub 账号。`build.sh` 脚本自动化执行与 CI 工作流相同的构建步骤。
+
+### 前提条件
+
+- **Linux**（Debian/Ubuntu、Fedora、Arch、Alpine）或 **macOS**（需 Homebrew）
+- **Windows**：使用 WSL2
+- 约 25 GB 可用磁盘空间
+- 内存至少 4 GB（推荐 8 GB）
+- 网络连接
+
+### 快速开始
+
+```bash
+git clone https://github.com/CrazyBoyFeng/openwrt-pz-l8.git
+cd openwrt-pz-l8
+
+# 编译全部变种（router + ap）
+./build.sh
+
+# 仅编译单个变种
+./build.sh router
+./build.sh ap
+```
+
+### 选项
+
+| 选项 | 说明 |
+|------|------|
+| `-c on\|off` | 启用/禁用 ccache（默认：on） |
+| `-j N` | 并行编译任务数（默认：nproc） |
+| `-k PATH` | 复用已有 OpenWrt 源码目录（跳过克隆） |
+| `-h` | 显示帮助 |
+
+### 示例
+
+```bash
+./build.sh -j 2 ap                # 使用 2 个任务编译 ap
+./build.sh -k ~/openwrt router    # 复用已有 OpenWrt 源码目录
+./build.sh -c off router ap       # 不使用 ccache 编译
+```
+
+构建产物放在 `artifacts/<variant>/` 目录下。
+
+---
+
 ## 安装
 
 > **注意**：如果设备仍在运行原厂固件，必须先刷入 `factory.ubi` 或 `initramfs.itb` 镜像。刷写方法请参考 [PR #20681](https://github.com/openwrt/openwrt/pull/20681) 的安装指南。安装 OpenWrt 后，后续升级可使用 `sysupgrade.bin` 镜像。
