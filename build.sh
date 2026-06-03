@@ -13,10 +13,9 @@
 #   - Internet connection
 #
 # Usage:
-#   ./build.sh                    # build all variants (router + ap)
+#   ./build.sh                    # build all auto-discovered variants
 #   ./build.sh router             # build only router variant
 #   ./build.sh ap                 # build only ap variant
-#   ./build.sh router ap          # build both in order
 #   ./build.sh -c                 # build with ccache (default)
 #   ./build.sh -c off             # build without ccache
 #   ./build.sh -j 4               # use 4 parallel jobs (default: nproc)
@@ -27,11 +26,28 @@
 
 set -euo pipefail
 
+# ── Locate project root ─────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+
 # ── Configuration (must match .github/workflows/build.yml) ──────────────
 TARGET="qualcommax"
 SUBTARGET="ipq50xx"
 DEVICE="cmcc_pz-l8"
-DEFAULT_VARIANTS="router ap"
+
+# Auto-discover variants: scan variants/*/build.config
+# Directory name = variant name. No hardcoded list needed.
+DEFAULT_VARIANTS=""
+for _d in "$PROJECT_ROOT/variants"/*/; do
+    _v="$(basename "$_d")"
+    [ -f "$_d/build.config" ] && DEFAULT_VARIANTS="$DEFAULT_VARIANTS $_v"
+done
+DEFAULT_VARIANTS="${DEFAULT_VARIANTS# }"
+if [ -z "$DEFAULT_VARIANTS" ]; then
+    echo "ERROR: No variants found. Create variants/<name>/build.config files."
+    exit 1
+fi
+
 PR_21495_SHA="bb1d6cf5472bf0a5e4ebe5f20bc03011122a5734"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
@@ -50,7 +66,7 @@ Usage: $(basename "$0") [OPTIONS] [VARIANT...]
 
 Build OpenWrt firmware for CMCC PZ-L8 locally.
 
-Variants:
+Variants (auto-discovered from variants/*/build.config):
   router    Router mode (full-featured: NAT, firewall, PPPoE)
   ap        AP mode (mesh, minimal footprint)
 
@@ -83,10 +99,6 @@ shift $((OPTIND - 1))
 if [ $# -gt 0 ]; then
     VARIANTS="$*"
 fi
-
-# ── Locate project root ─────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
 
 # ── OS detection and dependency installation ──────────────────────────────
 detect_os() {
@@ -385,11 +397,11 @@ build_variants() {
         fi
 
         # 2. Generate configuration
-        if [ ! -f "$VARIANT_DIR/$VARIANT.config" ]; then
-            echo "ERROR: Config not found: $VARIANT_DIR/$VARIANT.config"
+        if [ ! -f "$VARIANT_DIR/build.config" ]; then
+            echo "ERROR: Config not found: $VARIANT_DIR/build.config"
             exit 1
         fi
-        cp "$VARIANT_DIR/$VARIANT.config" .config
+        cp "$VARIANT_DIR/build.config" .config
         make defconfig
         make defconfig
 

@@ -221,10 +221,10 @@ FM25LS01 驱动尚未被上游 Linux 内核或 OpenWrt 收录。
 build.sh                         # 主构建脚本（本地编译和 CI 共用）
 variants/
   ap/
-    ap.config                   # AP 模式：完整构建配置（目标、WiFi、Mesh、精简 LuCI）
+    build.config                # AP 模式：完整构建配置（目标、WiFi、Mesh、精简 LuCI）
     etc/uci-defaults/           # AP 模式首次启动脚本（执行后自动删除）
   router/
-    router.config               # 路由模式：完整构建配置（目标、WiFi、防火墙、完整 LuCI）
+    build.config                # 路由模式：完整构建配置（目标、WiFi、防火墙、完整 LuCI）
 scripts/
   fix-caldata.sh                # PR #21495 审查反馈的 Caldata 修正脚本
 patches/
@@ -238,20 +238,9 @@ patches/
 
 添加新的构建版本（例如"服务器"模式）：
 
-1. 创建 `variants/server/server.config`，填入所需的软件包（可复制现有配置作为模板）
+1. 创建 `variants/server/build.config`，填入所需的软件包（可复制现有配置作为模板）
 2. 创建 `variants/server/etc/uci-defaults/`，放入首次启动脚本
-3. 在 `build.sh` 的 `DEFAULT_VARIANTS` 变量中添加 `server`：
-
-```bash
-DEFAULT_VARIANTS="router ap server"   # 在此添加
-```
-
-同时在 `.github/workflows/build.yml` 的 `VARIANTS` 环境变量中也添加：
-
-```yaml
-env:
-  VARIANTS: "router ap server"
-```
+3. 无需其他修改 — `build.sh` 会自动扫描 `variants/*/build.config` 发现新版本
 
 ---
 

@@ -7,16 +7,15 @@
 # dependency installation, ccache caching, artifact upload, and releases.
 #
 # Config organization:
-#   variants/ap/ap.config          - AP mode build config
-#   variants/router/router.config  - Router mode build config
-#   variants/ap/etc/uci-defaults/  - AP mode first-boot scripts
+#   variants/*/build.config       - Build configs (auto-discovered by build.sh)
+#   variants/*/etc/uci-defaults/  - First-boot scripts
 #   scripts/   - Build scripts (modify OpenWrt source tree)
 #   patches/  - Kernel/device patches applied during build
 #
 # To add a new variant:
-#   1. Create variants/<name>/<name>.config with desired packages
+#   1. Create variants/<name>/build.config with desired packages
 #   2. Create variants/<name>/etc/uci-defaults/ with any first-boot scripts
-#   3. Add the variant name to the VARIANTS env variable below
+#   3. No other changes needed - build.sh auto-discovers variants
 
 name: Build OpenWrt for CMCC PZ-L8
 
@@ -36,8 +35,6 @@ env:
   TARGET: qualcommax
   SUBTARGET: ipq50xx
   DEVICE: cmcc_pz-l8
-  # Build variants (order matters: first = compiles toolchain + kernel + most packages)
-  VARIANTS: "router ap"
 
 jobs:
   build:
@@ -95,7 +92,7 @@ jobs:
       - name: Build all variants
         run: |
           chmod +x "$GITHUB_WORKSPACE/build.sh"
-          "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt" ${{ env.VARIANTS }}
+          "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt"
 
       - name: Show ccache stats
         run: ccache -s
@@ -127,14 +124,15 @@ jobs:
         run: |
           mkdir -p release
 
-          for VARIANT in ${{ env.VARIANTS }}; do
-            for f in artifacts/$VARIANT/*-sysupgrade.bin; do
+          for VARIANT_DIR in artifacts/*/; do
+            VARIANT=$(basename "$VARIANT_DIR")
+            for f in "$VARIANT_DIR"*-sysupgrade.bin; do
               [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-sysupgrade-$VARIANT.bin"
             done
-            for f in artifacts/$VARIANT/*-factory.ubi; do
+            for f in "$VARIANT_DIR"*-factory.ubi; do
               [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-factory-$VARIANT.ubi"
             done
-            for f in artifacts/$VARIANT/*-initramfs*.itb; do
+            for f in "$VARIANT_DIR"*-initramfs*.itb; do
               [ -f "$f" ] && cp "$f" "release/openwrt-pz-l8-initramfs-$VARIANT.itb"
             done
           done

@@ -221,10 +221,10 @@ This project adds support via a patch adapted from [ImmortalWrt](https://github.
 build.sh                         # Main build script (shared by local and CI builds)
 variants/
   ap/
-    ap.config                   # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
+    build.config                # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
     etc/uci-defaults/           # AP mode first-boot scripts (self-delete after run)
   router/
-    router.config               # Router mode: full build config (target, WiFi, firewall, full LuCI)
+    build.config                # Router mode: full build config (target, WiFi, firewall, full LuCI)
 scripts/
   fix-caldata.sh                # Caldata fix for PR #21495 review feedback
 patches/
@@ -238,20 +238,9 @@ patches/
 
 To add a new build variant (e.g., "Server" mode):
 
-1. Create `variants/server/server.config` with the desired packages (copy an existing config as template)
+1. Create `variants/server/build.config` with the desired packages (copy an existing config as template)
 2. Create `variants/server/etc/uci-defaults/` with any first-boot scripts
-3. Add `"server"` to the `DEFAULT_VARIANTS` variable in `build.sh`:
-
-```bash
-DEFAULT_VARIANTS="router ap server"   # add server here
-```
-
-Also add `"server"` to the `VARIANTS` env in `.github/workflows/build.yml`:
-
-```yaml
-env:
-  VARIANTS: "router ap server"
-```
+3. No other changes needed — `build.sh` auto-discovers variants by scanning `variants/*/build.config`
 
 ---
 
