@@ -218,6 +218,7 @@ FM25LS01 驱动尚未被上游 Linux 内核或 OpenWrt 收录。
 ## 项目结构
 
 ```
+build.sh                         # 主构建脚本（本地编译和 CI 共用）
 variants/
   ap/
     ap.config                   # AP 模式：完整构建配置（目标、WiFi、Mesh、精简 LuCI）
@@ -229,7 +230,7 @@ scripts/
 patches/
   add-fm25ls01-support.patch    # FM25LS01 SPI NAND 支持（V2 硬件）
 .github/
-  workflows/build.yml           # CI 构建工作流
+  workflows/build.yml           # CI 构建工作流（调用 build.sh）
   release-notes.md              # 发布说明模板
 ```
 
@@ -239,11 +240,17 @@ patches/
 
 1. 创建 `variants/server/server.config`，填入所需的软件包（可复制现有配置作为模板）
 2. 创建 `variants/server/etc/uci-defaults/`，放入首次启动脚本
-3. 在 `.github/workflows/build.yml` 的 `VARIANTS` 环境变量中添加 `server`：
+3. 在 `build.sh` 的 `DEFAULT_VARIANTS` 变量中添加 `server`：
+
+```bash
+DEFAULT_VARIANTS="router ap server"   # 在此添加
+```
+
+同时在 `.github/workflows/build.yml` 的 `VARIANTS` 环境变量中也添加：
 
 ```yaml
 env:
-  VARIANTS: "router ap server"   # 在此添加
+  VARIANTS: "router ap server"
 ```
 
 ---

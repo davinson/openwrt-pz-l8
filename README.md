@@ -218,6 +218,7 @@ This project adds support via a patch adapted from [ImmortalWrt](https://github.
 ## Project Structure
 
 ```
+build.sh                         # Main build script (shared by local and CI builds)
 variants/
   ap/
     ap.config                   # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
@@ -229,7 +230,7 @@ scripts/
 patches/
   add-fm25ls01-support.patch    # FM25LS01 SPI NAND support for V2 hardware
 .github/
-  workflows/build.yml           # CI build workflow
+  workflows/build.yml           # CI build workflow (calls build.sh)
   release-notes.md              # Release notes template
 ```
 
@@ -239,11 +240,17 @@ To add a new build variant (e.g., "Server" mode):
 
 1. Create `variants/server/server.config` with the desired packages (copy an existing config as template)
 2. Create `variants/server/etc/uci-defaults/` with any first-boot scripts
-3. Add `"server"` to the `VARIANTS` env variable in `.github/workflows/build.yml`:
+3. Add `"server"` to the `DEFAULT_VARIANTS` variable in `build.sh`:
+
+```bash
+DEFAULT_VARIANTS="router ap server"   # add server here
+```
+
+Also add `"server"` to the `VARIANTS` env in `.github/workflows/build.yml`:
 
 ```yaml
 env:
-  VARIANTS: "router ap server"   # add server here
+  VARIANTS: "router ap server"
 ```
 
 ---
