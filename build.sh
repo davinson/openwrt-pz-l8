@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Local build script for CMCC PZ-L8 OpenWrt firmware
+# Build script for CMCC PZ-L8 OpenWrt firmware
 #
-# Mirrors the CI workflow (.github/workflows/build.yml) so users can build
-# locally without a GitHub account.
+# Shared by both local and CI builds:
+#   - Local:  run directly with ./build.sh
+#   - CI:     called by .github/workflows/build.yml (uses -k for pre-checked-out tree)
 #
 # Prerequisites:
 #   - Linux (Debian/Ubuntu, Fedora, Arch) or macOS
@@ -229,6 +230,10 @@ setup_ccache() {
         return
     fi
     echo "=== Configuring ccache ==="
+    # In CI, align cache_dir with actions/cache path
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+        ccache --set-config=cache_dir=~/.ccache
+    fi
     ccache --set-config=max_size=10G
     ccache --set-config=compression=true
     ccache -z
@@ -242,13 +247,15 @@ prepare_openwrt() {
         fi
         echo "=== Using existing OpenWrt tree: $OPENWRT_DIR ==="
         cd "$OPENWRT_DIR"
-        # Make sure we're on the right branch and up to date
-        git fetch origin "$OPENWRT_BRANCH" --depth=1
-        git checkout "$OPENWRT_BRANCH"
-        git pull origin "$OPENWRT_BRANCH" || true
+        # In CI, actions/checkout already set up the tree; skip git operations
+        if [ -z "${GITHUB_ACTIONS:-}" ]; then
+            git fetch origin "$OPENWRT_BRANCH" --depth=1
+            git checkout "$OPENWRT_BRANCH"
+            git pull origin "$OPENWRT_BRANCH" || true
+        fi
     else
         echo "=== Cloning OpenWrt ==="
-        cd "$(dirname "$OPENWRT_DIR")" 2>/dev/null || cd "$PROJECT_ROOT"
+        cd "$PROJECT_ROOT"
         git clone --depth 1 -b "$OPENWRT_BRANCH" "$OPENWRT_REPO" openwrt
         cd openwrt
         OPENWRT_DIR="$(pwd)"

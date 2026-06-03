@@ -2,11 +2,15 @@
 # Builds all variants sequentially in a single job, sharing toolchain
 # and compiled packages between builds to save runner time.
 #
+# The actual build logic lives in build.sh (shared with local builds).
+# This workflow provides CI-specific infrastructure: disk cleanup,
+# dependency installation, ccache caching, artifact upload, and releases.
+#
 # Config organization:
 #   variants/ap/ap.config          - AP mode build config
 #   variants/router/router.config  - Router mode build config
 #   variants/ap/etc/uci-defaults/  - AP mode first-boot scripts
-#   scripts/   - CI build scripts (modify OpenWrt source tree)
+#   scripts/   - Build scripts (modify OpenWrt source tree)
 #   patches/  - Kernel/device patches applied during build
 #
 # To add a new variant:
@@ -34,9 +38,6 @@ env:
   DEVICE: cmcc_pz-l8
   # Build variants (order matters: first = compiles toolchain + kernel + most packages)
   VARIANTS: "router ap"
-  # Pinned commit SHAs (update when upstream changes)
-  PR_21495_SHA: bb1d6cf5472bf0a5e4ebe5f20bc03011122a5734
-  BDF_COMMIT: f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701
 
 jobs:
   build:
@@ -83,62 +84,6 @@ jobs:
           path: openwrt
           fetch-depth: 0
 
-      - name: "Merge PR #21495 and fix caldata"
-        working-directory: openwrt
-        run: |
-          git config user.email "builder@github.com"
-          git config user.name "GitHub Actions"
-
-          git fetch origin ${{ env.PR_21495_SHA }}
-          if ! git merge FETCH_HEAD --no-edit; then
-            echo "=== Merge conflicts detected (expected for caldata) ==="
-            CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-            git checkout --ours "$CALDATA"
-            git add "$CALDATA"
-            git commit --no-edit --no-verify
-            echo "=== Caldata conflict resolved (using main version) ==="
-          fi
-
-          if ! git log --oneline | grep -q "bb1d6cf5"; then
-            echo "ERROR: Pinned PR #21495 commit bb1d6cf5 not found."
-            exit 1
-          fi
-
-          CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-          chmod +x "$GITHUB_WORKSPACE/scripts/fix-caldata.sh"
-          "$GITHUB_WORKSPACE/scripts/fix-caldata.sh" "$CALDATA"
-
-      - name: "Add FM25LS01 SPI NAND support (V2 hardware)"
-        working-directory: openwrt
-        run: |
-          PATCH_DIR=target/linux/generic/backport-6.12
-          PATCH_SRC="$GITHUB_WORKSPACE/patches/add-fm25ls01-support.patch"
-          PATCH_DST="$PATCH_DIR/440-v6.12-mtd-spinand-add-support-for-FudanMicro-FM25LS01.patch"
-
-          if [ ! -f "$PATCH_SRC" ]; then
-            echo "ERROR: FM25LS01 patch not found at $PATCH_SRC"
-            exit 1
-          fi
-
-          cp "$PATCH_SRC" "$PATCH_DST"
-          echo "=== FM25LS01 patch installed ==="
-          ls -la "$PATCH_DST"
-
-      - name: Download BDF files for PZ-L8 WiFi
-        working-directory: openwrt
-        run: |
-          mkdir -p files/lib/firmware/ath11k/IPQ5018/hw1.0
-          mkdir -p files/lib/firmware/ath11k/QCN6122/hw1.0
-
-          curl -L -o files/lib/firmware/ath11k/IPQ5018/hw1.0/board-2.bin \
-            "https://github.com/openwrt/firmware_qca-wireless/raw/${{ env.BDF_COMMIT }}/board-cmcc_pz-l8.ipq5018"
-          curl -L -o files/lib/firmware/ath11k/QCN6122/hw1.0/board-2.bin \
-            "https://github.com/openwrt/firmware_qca-wireless/raw/${{ env.BDF_COMMIT }}/board-cmcc_pz-l8.qcn6122"
-
-          echo "=== BDF files ==="
-          ls -la files/lib/firmware/ath11k/IPQ5018/hw1.0/
-          ls -la files/lib/firmware/ath11k/QCN6122/hw1.0/
-
       - name: Cache ccache
         uses: actions/cache@v4
         with:
@@ -147,103 +92,10 @@ jobs:
           restore-keys: |
             ccache-${{ env.TARGET }}-shared-v15-
 
-      - name: Configure ccache
-        run: |
-          ccache --set-config=cache_dir=~/.ccache
-          ccache --set-config=max_size=10G
-          ccache --set-config=compression=true
-          ccache -z
-
-      - name: Update feeds
-        working-directory: openwrt
-        run: |
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-      - name: Download precompiled toolchain
-        working-directory: openwrt
-        continue-on-error: true
-        run: |
-          TOOLCHAIN_URL="https://downloads.openwrt.org/snapshots/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/"
-          TOOLCHAIN_FILE=$(curl -sL "$TOOLCHAIN_URL" | grep -oP 'openwrt-toolchain[^"]+tar\.zst' | head -1)
-
-          if [ -z "$TOOLCHAIN_FILE" ]; then
-            echo "No toolchain found at $TOOLCHAIN_URL, will compile from source"
-            exit 1
-          fi
-
-          echo "Downloading $TOOLCHAIN_FILE ..."
-          curl -LO "${TOOLCHAIN_URL}${TOOLCHAIN_FILE}"
-          tar --zstd -xf "$TOOLCHAIN_FILE"
-          rm -f "$TOOLCHAIN_FILE"
-
-          echo "=== Precompiled toolchain extracted ==="
-
       - name: Build all variants
-        working-directory: openwrt
         run: |
-          VARIANT_COUNT=$(echo "${{ env.VARIANTS }}" | wc -w)
-          VARIANT_IDX=0
-          BUILD_START=$(date +%s)
-
-          for VARIANT in ${{ env.VARIANTS }}; do
-            VARIANT_IDX=$((VARIANT_IDX + 1))
-            VARIANT_START=$(date +%s)
-            echo ""
-            echo "============================================================"
-            echo "=== [$VARIANT_IDX/$VARIANT_COUNT] Building variant: $VARIANT ==="
-            echo "=== Started: $(date -u +'%Y-%m-%dT%H:%M:%SZ') ==="
-            echo "============================================================"
-
-            VARIANT_DIR="$GITHUB_WORKSPACE/variants/$VARIANT"
-            ARTIFACT_DIR="$GITHUB_WORKSPACE/artifacts/$VARIANT"
-            mkdir -p "$ARTIFACT_DIR"
-
-            # 1. Copy overlay files (clear previous variant's files first)
-            rm -rf files/etc 2>/dev/null
-            if [ -d "$VARIANT_DIR/etc" ]; then
-              cp -r "$VARIANT_DIR/etc" files/
-              echo "--- Copied overlay files ---"
-              find files/etc -type f | sort
-            fi
-
-            # 2. Generate configuration
-            cp "$VARIANT_DIR/$VARIANT.config" .config
-            make defconfig
-            make defconfig
-
-            # 3. Download sources
-            DL_START=$(date +%s)
-            for i in 1 2 3; do
-              echo "Download attempt $i/3..."
-              if make download -j$(nproc) V=s; then break; fi
-              [ $i -eq 3 ] && exit 1
-              sleep 30
-            done
-            DL_SEC=$(( $(date +%s) - DL_START ))
-            echo "--- Download completed in ${DL_SEC}s ---"
-
-            # 4. Build
-            BUILD_V_START=$(date +%s)
-            make -j$(nproc) V=w || make -j1 V=w || make -j1 V=s
-            BUILD_V_SEC=$(( $(date +%s) - BUILD_V_START ))
-            echo "--- Build completed in ${BUILD_V_SEC}s ---"
-
-            # 5. Collect artifacts
-            cp -v bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/*factory*.ubi "$ARTIFACT_DIR/" 2>/dev/null || true
-            cp -v bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/*sysupgrade*.bin "$ARTIFACT_DIR/" 2>/dev/null || true
-            cp -v bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/*initramfs*.itb "$ARTIFACT_DIR/" 2>/dev/null || true
-            echo "--- Artifacts for $VARIANT ---"
-            ls -lh "$ARTIFACT_DIR/"
-
-            VARIANT_SEC=$(( $(date +%s) - VARIANT_START ))
-            echo ""
-            echo "=== [$VARIANT_IDX/$VARIANT_COUNT] $VARIANT done in ${VARIANT_SEC}s ==="
-          done
-
-          TOTAL_SEC=$(( $(date +%s) - BUILD_START ))
-          echo ""
-          echo "=== All variants completed in ${TOTAL_SEC}s ==="
+          chmod +x "$GITHUB_WORKSPACE/build.sh"
+          "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt" ${{ env.VARIANTS }}
 
       - name: Show ccache stats
         run: ccache -s
