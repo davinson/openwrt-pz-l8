@@ -81,7 +81,26 @@ jobs:
           path: openwrt
           fetch-depth: 0
 
+      - name: Compute build signature
+        id: sig
+        run: |
+          OPENWRT_SHA=$(cd openwrt && git rev-parse HEAD)
+          REPO_SHA=$(git rev-parse HEAD)
+          # Short unique key: OpenWrt commit + repo commit determines the exact build inputs
+          SIG="${OPENWRT_SHA:0:12}-${REPO_SHA:0:12}"
+          echo "key=$SIG" >> "$GITHUB_OUTPUT"
+          echo "openwrt=${OPENWRT_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Try to restore cached artifacts
+        id: artifact-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/
+          key: firmware-${{ steps.sig.outputs.key }}
+
       - name: Cache ccache
+        if: steps.artifact-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: ~/.ccache
@@ -90,12 +109,44 @@ jobs:
             ccache-${{ env.TARGET }}-shared-v15-
 
       - name: Build all variants
+        if: steps.artifact-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x "$GITHUB_WORKSPACE/build.sh"
           "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt"
 
       - name: Show ccache stats
+        if: steps.artifact-cache.outputs.cache-hit != 'true'
         run: ccache -s
+
+      - name: Save artifacts to cache
+        if: steps.artifact-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/
+          key: firmware-${{ steps.sig.outputs.key }}
+
+      - name: Build summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<HEREDOC
+          $([ "${{ steps.artifact-cache.outputs.cache-hit }}" = 'true' ] && echo "## 🎉 Cache Hit - Build Skipped" || echo "## 🔨 Build Completed")
+
+          | | |
+          |---|---|
+          | **OpenWrt** | \`${{ steps.sig.outputs.openwrt }}\` |
+          | **Repo** | \`${{ steps.sig.outputs.repo }}\` |
+          HEREDOC
+          if [ "${{ steps.artifact-cache.outputs.cache-hit }}" = 'true' ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<'HEREDOC'
+
+          ```
+          HEREDOC
+            find artifacts/ -type f | sort >> "$GITHUB_STEP_SUMMARY"
+            cat >> "$GITHUB_STEP_SUMMARY" <<'HEREDOC'
+          ```
+          HEREDOC
+          else
+            echo "| **Build key** | \`firmware-${{ steps.sig.outputs.key }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
