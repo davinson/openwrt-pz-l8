@@ -127,23 +127,21 @@ jobs:
 
       - name: Build summary
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<HEREDOC
-          $([ "${{ steps.artifact-cache.outputs.cache-hit }}" = 'true' ] && echo "## 🎉 Cache Hit - Build Skipped" || echo "## 🔨 Build Completed")
-
-          | | |
-          |---|---|
-          | **OpenWrt** | \`${{ steps.sig.outputs.openwrt }}\` |
-          | **Repo** | \`${{ steps.sig.outputs.repo }}\` |
-          HEREDOC
           if [ "${{ steps.artifact-cache.outputs.cache-hit }}" = 'true' ]; then
-            cat >> "$GITHUB_STEP_SUMMARY" <<'HEREDOC'
-
-          ```
-          HEREDOC
+            echo "## 🎉 Cache Hit - Build Skipped" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## 🔨 Build Completed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **OpenWrt** | \`${{ steps.sig.outputs.openwrt }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Repo** | \`${{ steps.sig.outputs.repo }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.artifact-cache.outputs.cache-hit }}" = 'true' ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
             find artifacts/ -type f | sort >> "$GITHUB_STEP_SUMMARY"
-            cat >> "$GITHUB_STEP_SUMMARY" <<'HEREDOC'
-          ```
-          HEREDOC
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| **Build key** | \`firmware-${{ steps.sig.outputs.key }}\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
