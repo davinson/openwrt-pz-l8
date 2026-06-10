@@ -193,7 +193,8 @@ apk add luci-i18n-base-zh-cn luci-i18n-package-manager-zh-cn
 
 后批次的 CMCC PZ-L8（V2 版本）使用了 FMSH FM25LS01 SPI NAND 闪存芯片，替代了早期批次中的 ESMT F50D1G41LB。
 FM25LS01 驱动尚未被上游 Linux 内核或 OpenWrt 收录。
-本项目通过从 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/blob/cec44a8d851230dff1807d616f264593f4fa13ae/target/linux/generic/hack-6.12/400-mtd-spinand-Support-fmsh.patch#L187-L195) 适配的补丁来添加支持，该补丁源自 Rockchip BSP 代码。经与 [FM25LS01 规格书](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf) 核对，ImmortalWrt 补丁的所有参数（Device ID、页大小、OOB 布局、标志位等）均与芯片规格一致。
+本项目通过从 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/blob/cec44a8d851230dff1807d616f264593f4fa13ae/target/linux/generic/hack-6.12/400-mtd-spinand-Support-fmsh.patch#L187-L195) 适配的补丁来添加支持，该补丁源自 Rockchip BSP 代码。
+经与 [FM25LS01 规格书](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf) 核对，ImmortalWrt 补丁的所有参数均与芯片规格一致。
 
 | 规格 | 值 |
 |------|-----|
@@ -201,27 +202,19 @@ FM25LS01 驱动尚未被上游 Linux 内核或 OpenWrt 收录。
 | 容量 | 128MiB |
 | 页大小 | 2048 字节 |
 | OOB 大小 | 128 字节 |
-| On-die ECC | 1 位 / 512 字节（按[规格书](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf)） |
-| **补丁 ECC** | **8 位 / 512 字节**（见下文） |
+| On-die ECC | 1 位 / 512 字节 |
+| **补丁 ECC** | **8 位 / 512 字节** |
 
-#### 为什么使用 8-bit ECC 而不是 1-bit？
+#### 补丁 ECC
 
-[FM25LS01 规格书](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf)规定每 512 字节数据需要 1-bit on-die ECC。ImmortalWrt 补丁正确地声明了 `NAND_ECCREQ(1, 512)` 来反映这一参数。然而，在 CMCC PZ-L8 上，U-Boot 引导加载程序（Qualcomm QPIC NAND 控制器）使用 **8-bit ECC** 写入 NAND 数据——这是**控制器行为**，而非闪存芯片本身的属性。
+FM25LS01 规格每 512 字节数据需 1-bit on-die ECC。
+但 U-Boot 引导加载程序（Qualcomm QPIC NAND 控制器）使用 **8-bit ECC** 写入 NAND 数据，与 Linux `qcom_snand` 控制器驱动不兼容。
+这会导致 `ubiattach` 失败（错误 `-74 EUCLEAN`）及刷机后设备变砖。
+因此，补丁将 ECC 声明改为 `NAND_ECCREQ(8, 512)` 以匹配 U-Boot 的行为。
+这是针对 `qcom_snand` 驱动无法协调芯片 on-die ECC 规格与控制器实际 ECC 强度的设备级临时修复。
+更好的方案是向 Linux `qcom_snand` 控制器驱动提交补丁，使其能独立于芯片的 `NAND_ECCREQ` 声明来处理 ECC 强度。
 
-Linux 端的 `qcom_snand` 控制器驱动读取 `NAND_ECCREQ(1, 512)` 后回退到 4-bit ECC（QPIC 控制器的最小值），与 U-Boot 的 8-bit ECC 不匹配。这导致 `ubiattach` 失败（错误 -74 EUCLEAN）以及刷机后设备变砖。因此，补丁中将 ECC 声明改为 `NAND_ECCREQ(8, 512)` 以匹配 U-Boot 的行为。
-
-这是针对 `qcom_snand` 驱动无法协调芯片 on-die ECC 规格与控制器实际 ECC 强度的问题，所做的设备级临时修复。ImmortalWrt 补丁本身是正确的——问题在于控制器驱动。
-
-#### 使用 8-bit ECC 是否安全？
-
-是的。在此设备上使用 8-bit 外部 ECC 没有实际的负面影响：
-
-- **无数据丢失风险**：8-bit ECC 提供了比必要更强的纠错能力，而非更弱。数据完整性得到保持或提升。
-- **性能**：在此硬件上，4-bit 与 8-bit 之间的 ECC 计算开销差异可忽略不计。
-- **On-die 与外部 ECC 共存**：FM25LS01 的内部 1-bit on-die ECC 仍然激活，但在更底层运行。QPIC 控制器的 8-bit 外部 ECC 在其之上应用，提供冗余保护。
-- **OOB 空间**：OOB 布局为 ECC 校验数据分配了 64 字节（偏移量 64–127），足以容纳 8-bit ECC，并为元数据保留了 62 字节。
-
-唯一的代价是此补丁不适合直接提交上游——正确的上游修复方式应修改 `qcom_snand` 控制器驱动，使其独立于芯片的 `NAND_ECCREQ` 声明来处理 ECC 强度。
+虽然此补丁不符合芯片规格，但不会产生负面影响。
 
 ### WiFi Board Data 文件
 
