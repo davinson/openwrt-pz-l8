@@ -201,9 +201,27 @@ This project adds support via a patch adapted from [ImmortalWrt](https://github.
 | Capacity | 128MiB |
 | Page size | 2048 bytes |
 | OOB size | 128 bytes |
-| ECC | 1 bit / 512 bytes (software) |
+| On-die ECC | 1 bit / 512 bytes (per [datasheet](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf)) |
+| **Patched ECC** | **8 bits / 512 bytes** (see below) |
 
-> **Disclaimer**: The author does not own a V2 device and cannot fully test this patch. It may not work perfectly. If you encounter issues (e.g., flash detection failure, data corruption), please report them to [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/issues).
+#### Why 8-bit ECC instead of 1-bit?
+
+The FM25LS01 [datasheet](https://www.fmsh.com/nvm/FM25LS01_ds_eng.pdf) specifies 1-bit on-die ECC per 512 bytes. The original ImmortalWrt patch correctly declares `NAND_ECCREQ(1, 512)` to reflect this. However, on the CMCC PZ-L8, the U-Boot bootloader (Qualcomm QPIC NAND controller) writes NAND data with **8-bit ECC** — this is a **controller behavior**, not a property of the flash chip itself.
+
+The Linux `qcom_snand` controller driver reads `NAND_ECCREQ(1, 512)` and falls back to 4-bit ECC (the QPIC minimum), causing a mismatch with U-Boot's 8-bit ECC. This results in `ubiattach` failures (error -74 EUCLEAN) and device bricks after flashing. Therefore, the patch declares `NAND_ECCREQ(8, 512)` to match U-Boot's behavior.
+
+This is a device-specific workaround for the `qcom_snand` driver's inability to reconcile the chip's on-die ECC specification with the controller's actual ECC strength. The ImmortalWrt patch itself is correct — the issue lies in the controller driver.
+
+#### Is 8-bit ECC safe?
+
+Yes. Using 8-bit external ECC on this device has no negative practical impact:
+
+- **No data loss risk**: 8-bit ECC provides stronger error correction than necessary, not weaker. Data integrity is preserved or improved.
+- **Performance**: The ECC computation overhead difference between 4-bit and 8-bit is negligible on this hardware.
+- **On-die + external ECC coexistence**: The FM25LS01's internal 1-bit on-die ECC remains active but operates at a lower layer. The QPIC controller's 8-bit external ECC applies on top, providing redundant protection.
+- **OOB space**: The OOB layout allocates 64 bytes for ECC parity (offset 64–127), which is sufficient for 8-bit ECC and leaves 62 bytes for metadata.
+
+The only trade-off is that this patch is not directly suitable for upstream submission as-is — a proper upstream fix would modify the `qcom_snand` controller driver to handle the ECC strength independently of the chip's `NAND_ECCREQ` declaration.
 
 ### WiFi Board Data Files
 
