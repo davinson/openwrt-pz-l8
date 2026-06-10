@@ -208,10 +208,8 @@ The ImmortalWrt patch has been verified against the [FM25LS01 datasheet](https:/
 #### Patched ECC
 
 The FM25LS01 specifies 1-bit on-die ECC per 512 bytes.  
-However, the U-Boot bootloader (Qualcomm QPIC NAND controller) writes NAND data with **8-bit ECC**, which is incompatible with the the Linux `qcom_snand` controller driver.  
-This results in `ubiattach` failures (error `-74 EUCLEAN`) and device bricks after flashing.  
-Therefore, the patch declares `NAND_ECCREQ(8, 512)` to match U-Boot's behavior.  
-This is a device-specific workaround for the `qcom_snand` driver's inability to reconcile the chip's on-die ECC specification with the controller's actual ECC strength.  
+However, the U-Boot bootloader (Qualcomm QPIC NAND controller) writes NAND data with 8-bit ECC, which is incompatible with the the Linux `qcom_snand` controller driver. This results in `ubiattach` failures (error `-74 EUCLEAN`) and device bricks after flashing.  
+Therefore, the patch declares `NAND_ECCREQ(8, 512)` to match U-Boot's behavior. This is a device-specific workaround for the `qcom_snand` driver's inability to reconcile the chip's on-die ECC specification with the controller's actual ECC strength.  
 A better solution would be to submit a patch to the Linux `qcom_snand` controller driver so that it can handle ECC strength independently of the chip's `NAND_ECCREQ` declaration.
 
 Although this patch does not comply with the chip specifications, it has no negative effects.  
