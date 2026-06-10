@@ -1,8 +1,15 @@
 #!/bin/sh
-# uci-defaults: AP mode network configuration
-# Self-deletes via rm (creates overlayfs whiteout).
-# Whiteout path is added to sysupgrade.conf so the deletion
-# state survives sysupgrade, preserving user modifications.
+# uci-defaults: AP mode network configuration (first boot only)
+# Skip if this looks like a sysupgrade (hostname changed or password set).
+# OpenWrt automatically removes successfully executed uci-defaults scripts.
+
+HOSTNAME=$(uci -q get system.@system[0].hostname)
+if [ -n "$HOSTNAME" ] && [ "$HOSTNAME" != "OpenWrt" ]; then
+    exit 0
+fi
+if grep -q '^root:[^!:]' /etc/shadow 2>/dev/null; then
+    exit 0
+fi
 
 # Bridge all ports (lan1, lan2, lan3, wan)
 uci -q delete network.device
@@ -30,10 +37,5 @@ uci set network.lan_static.netmask='255.255.255.0'
 uci set network.lan.ipv6='auto'
 
 uci commit network
-
-# Self-delete and preserve whiteout across sysupgrade
-rm "$0"
-WHITOUT="/etc/uci-defaults/.wh.$(basename "$0")"
-grep -qx "$WHITOUT" /etc/sysupgrade.conf 2>/dev/null || echo "$WHITOUT" >> /etc/sysupgrade.conf
 
 exit 0
