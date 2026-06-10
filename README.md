@@ -222,9 +222,13 @@ build.sh                         # Main build script (shared by local and CI bui
 variants/
   ap/
     build.config                # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
-    etc/uci-defaults/           # AP mode first-boot scripts (self-delete after run)
+    etc/uci-defaults/
+      98-ap-mode-network         # AP network config (skip if hostname or password set)
+      99-add-luci-i18n           # Install Chinese language packs when timezone is Asia/Shanghai
   router/
     build.config                # Router mode: full build config (target, WiFi, firewall, full LuCI)
+    etc/uci-defaults/
+      99-add-luci-i18n           # Install Chinese language packs when timezone is Asia/Shanghai
 scripts/
   fix-caldata.sh                # Caldata fix for PR #21495 review feedback
 patches/
