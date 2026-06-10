@@ -133,7 +133,7 @@ jobs:
             echo "## 🔨 Build Completed" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Source | Commit |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| **OpenWrt** | \`${{ steps.sig.outputs.openwrt }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Repo** | \`${{ steps.sig.outputs.repo }}\` |" >> "$GITHUB_STEP_SUMMARY"
