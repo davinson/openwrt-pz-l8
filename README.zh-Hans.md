@@ -224,11 +224,11 @@ variants/
     build.config                # AP 模式：完整构建配置（目标、WiFi、Mesh、精简 LuCI）
     etc/uci-defaults/
       98-ap-mode-network         # AP 网络配置（已设主机名或密码则跳过）
-      99-add-luci-i18n           # 时区为 Asia/Shanghai 时安装中文语言包
+      99-add-luci-i18n           # 根据时区安装 LuCI 语言包
   router/
     build.config                # 路由模式：完整构建配置（目标、WiFi、防火墙、完整 LuCI）
     etc/uci-defaults/
-      99-add-luci-i18n           # 时区为 Asia/Shanghai 时安装中文语言包
+      99-add-luci-i18n           # 根据时区安装 LuCI 语言包
 scripts/
   fix-caldata.sh                # PR #21495 审查反馈的 Caldata 修正脚本
 patches/
