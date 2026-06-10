@@ -209,7 +209,7 @@ FM25LS01 驱动尚未被上游 Linux 内核或 OpenWrt 收录。
 
 FM25LS01 规格每 512 字节数据需 1-bit on-die ECC。  
 但 U-Boot 引导加载程序（Qualcomm QPIC NAND 控制器）使用 8-bit ECC 写入 NAND 数据，与 Linux `qcom_snand` 控制器驱动不兼容。这会导致 `ubiattach` 失败（错误 `-74 EUCLEAN`）及刷机后设备变砖。  
-因此，补丁将 ECC 声明改为 `NAND_ECCREQ(8, 512)` 以匹配 U-Boot 的行为。这是针对 `qcom_snand` 驱动无法协调芯片 on-die ECC 规格与控制器实际 ECC 强度的设备级临时修复。
+因此，补丁将 ECC 声明改为 `NAND_ECCREQ(8, 512)` 以匹配 U-Boot 的行为。这是针对 `qcom_snand` 驱动无法协调芯片 on-die ECC 规格与控制器实际 ECC 强度的设备级临时修复。  
 更好的方案是向 Linux `qcom_snand` 控制器驱动提交补丁，使其能独立于芯片的 `NAND_ECCREQ` 声明来处理 ECC 强度。
 
 虽然此补丁不符合芯片规格，但不会产生负面影响。
