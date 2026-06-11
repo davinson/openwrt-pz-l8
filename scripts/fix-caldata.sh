@@ -1,13 +1,9 @@
 #!/bin/sh
 # Insert cmcc,pz-l8 caldata entries into ath11k caldata script
 #
-# This script is self-contained: it removes any existing cmcc,pz-l8 entries
-# and inserts the correct ones with review-approved settings.
-#
-# Works whether:
-#   - PR #21495 merged cleanly (has PZ-L8 entries that need correction)
-#   - PR had merge conflicts resolved (may or may not have PZ-L8 entries)
-#   - Caldata file is clean from main (no PZ-L8 entries at all)
+# PREREQUISITE: The caldata file must be the clean upstream main version
+# (without any cmcc,pz-l8 entries). build.sh ensures this by resetting
+# the caldata to HEAD^ (upstream main) before calling this script.
 #
 # Review-approved settings:
 #   2.4GHz (IPQ5018): offset 0x1000, MAC +2, remove_regdomain, set_macflag
@@ -27,26 +23,15 @@ if [ ! -f "$CALDATA" ]; then
     exit 1
 fi
 
-echo "=== Before ==="
-grep -n "cmcc,pz-l8" "$CALDATA" || echo "(no cmcc,pz-l8 entries)"
+# Safety check: file must NOT contain any cmcc,pz-l8 entries
+if grep -q 'cmcc,pz-l8' "$CALDATA"; then
+    echo "ERROR: $CALDATA already contains cmcc,pz-l8 entries."
+    echo "build.sh should reset the caldata file to upstream main first."
+    grep -n 'cmcc,pz-l8' "$CALDATA"
+    exit 1
+fi
 
-# Remove any existing cmcc,pz-l8 entries (from PR merge or previous run)
-# This ensures idempotency regardless of merge state
-sed -i '/cmcc,pz-l8/d' "$CALDATA"
-
-# Clean up orphaned backslash continuation on the line BEFORE the removed
-# cmcc,pz-l8|\ entry.  When the PR inserts "cmcc,pz-l8|\" as a fallthrough
-# before another device (e.g. "xiaomi,ax6000)"), removing the cmcc,pz-l8 line
-# leaves a dangling backslash on the preceding line if that line now ends with
-# "|\" but the next line starts a new case pattern (not another "|\" continuation).
-#
-# We only target the specific pattern: a line ending with |\ followed by a line
-# that is a case terminator ")".  This is safe because legitimate multi-device
-# fallthroughs use |\ before another |\ continuation, never directly before ).
-#
-# Example:  "some_device|\\"  +  "cmcc,pz-l8|\\"  +  "target_device)"
-#   → after removing cmcc,pz-l8:  "some_device|\\"  +  "target_device)"
-#   → some_device now falls through to target_device, which is correct.
+echo "=== Inserting cmcc,pz-l8 caldata entries ==="
 
 awk '
 BEGIN { in_24ghz = 0; in_5ghz_qcn6122 = 0; inserted_24 = 0; inserted_5 = 0 }
@@ -86,13 +71,18 @@ BEGIN { in_24ghz = 0; in_5ghz_qcn6122 = 0; inserted_24 = 0; inserted_5 = 0 }
 
 mv "${CALDATA}.tmp" "$CALDATA"
 
-echo ""
-echo "=== After ==="
+# Verify result has no syntax errors
+if ! bash -n "$CALDATA"; then
+    echo "ERROR: Generated caldata file has syntax errors!"
+    exit 1
+fi
+
+echo "=== Result ==="
 echo "--- 2.4GHz (IPQ5018) ---"
 grep -n -B 1 -A 8 "cmcc,pz-l8)" "$CALDATA" | head -20
 echo ""
-echo "--- Verify xiaomi,ax6000 unchanged ---"
-grep -n -A 3 "xiaomi,ax6000" "$CALDATA" | head -10
+echo "--- 5GHz (QCN6122) ---"
+grep -n -B 1 -A 8 "cmcc,pz-l8)" "$CALDATA" | tail -12
 
 echo ""
-echo "Caldata fix applied successfully."
+echo "Caldata entries inserted successfully."
