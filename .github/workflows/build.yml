@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: 'Variant to build (leave empty for all: ap, router)'
+        description: 'Variant to build (leave empty for all)'
         required: false
         default: ''
       release_tag:
