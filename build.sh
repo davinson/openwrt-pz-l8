@@ -271,7 +271,7 @@ prepare_openwrt() {
     # Pin to a specific OpenWrt commit if OPENWRT_SHA is set
     if [ -n "$OPENWRT_SHA" ]; then
         echo "=== Pinning OpenWrt to $OPENWRT_SHA ==="
-        git fetch --depth=100 origin "$OPENWRT_SHA"
+        git fetch --depth=1 origin "$OPENWRT_SHA"
         git checkout "$OPENWRT_SHA"
     elif [ -z "${GITHUB_ACTIONS:-}" ]; then
         # Local build without pin: pull latest
@@ -285,34 +285,30 @@ merge_pr_and_fix_caldata() {
     echo ""
     echo "=== Applying PR #21495 (ath11k smallbuffers + PZ-L8 WiFi) ==="
 
-    git config user.email "builder@localhost"
-    git config user.name "Local Builder"
-
-    # Fetch enough history for merge (both SHAs pinned, so merge is deterministic)
-    git fetch --depth=100 origin "$PR_21495_SHA" || {
+    # Fetch the PR commit and its parent (needed for git diff and --3way merge)
+    git fetch --depth=2 origin "$PR_21495_SHA" || {
         echo "ERROR: Failed to fetch PR commit $PR_21495_SHA"
         exit 1
     }
 
-    git merge FETCH_HEAD --no-edit || {
-        echo "ERROR: Merge conflict with PR #21495."
-        echo "This should not happen with pinned SHAs."
+    # Extract and apply PR changes (exclude caldata, handled by fix-caldata.sh)
+    git diff FETCH_HEAD^..FETCH_HEAD -- \
+        target/linux/qualcommax/dts/ \
+        package/kernel/mac80211/ \
+        package/firmware/ipq-wifi/ \
+        target/linux/qualcommax/image/ \
+    | git apply --3way || {
+        echo "ERROR: Failed to apply PR #21495 patches."
+        echo "This may indicate a conflict with the current OpenWrt version."
         echo "Please check if OPENWRT_SHA or PR_21495_SHA needs updating."
         exit 1
     }
 
-    # Reset caldata to upstream main version, then apply our own entries.
-    # The PR's caldata additions break fix-caldata.sh, so we always
-    # revert to main and re-apply via our script.
-    CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-    MERGE_BASE=$(git merge-base HEAD FETCH_HEAD 2>/dev/null || true)
-    if [ -n "$MERGE_BASE" ] && git show "$MERGE_BASE:$CALDATA" >/dev/null 2>&1; then
-        git show "$MERGE_BASE:$CALDATA" > "$CALDATA"
-    elif git show "HEAD^:$CALDATA" >/dev/null 2>&1; then
-        git show "HEAD^:$CALDATA" > "$CALDATA"
-    fi
-    echo "=== Caldata reset to upstream main version ==="
+    echo "=== PR #21495 patches applied ==="
 
+    # Apply fix-caldata.sh to insert our caldata extraction entries.
+    # We don't use the PR's caldata additions (they break fix-caldata.sh).
+    CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
     echo "=== Applying fix-caldata.sh ==="
     chmod +x "$PROJECT_ROOT/scripts/fix-caldata.sh"
     "$PROJECT_ROOT/scripts/fix-caldata.sh" "$CALDATA"
