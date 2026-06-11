@@ -11,6 +11,10 @@ if grep -q '^root:[^!:]' /etc/shadow 2>/dev/null; then
     exit 0
 fi
 
+MAC_SUFFIX=$(tr -d ':' </sys/class/net/eth0/address | sed 's/.*\(....\)$/\1/' | tr 'a-f' 'A-F')
+
+uci set system.@system[0].hostname="CMCC-$MAC_SUFFIX"
+
 # Bridge all ports (lan1, lan2, lan3, wan)
 uci -q delete network.device
 uci set network.device='device'
@@ -37,5 +41,6 @@ uci set network.lan_static.netmask='255.255.255.0'
 uci set network.lan.ipv6='auto'
 
 uci commit network
+uci commit system
 
 exit 0
