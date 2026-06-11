@@ -52,6 +52,7 @@ PR_21495_SHA="bb1d6cf5472bf0a5e4ebe5f20bc03011122a5734"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
+OPENWRT_SHA=""  # Set to a pinned commit SHA to lock the OpenWrt version. Leave empty to track main HEAD.
 
 # ── Defaults ─────────────────────────────────────────────────────────────
 VARIANTS="${DEFAULT_VARIANTS}"
@@ -259,12 +260,6 @@ prepare_openwrt() {
         fi
         echo "=== Using existing OpenWrt tree: $OPENWRT_DIR ==="
         cd "$OPENWRT_DIR"
-        # In CI, actions/checkout already set up the tree; skip git operations
-        if [ -z "${GITHUB_ACTIONS:-}" ]; then
-            git fetch origin "$OPENWRT_BRANCH" --depth=1
-            git checkout "$OPENWRT_BRANCH"
-            git pull origin "$OPENWRT_BRANCH" || true
-        fi
     else
         echo "=== Cloning OpenWrt ==="
         cd "$PROJECT_ROOT"
@@ -272,54 +267,49 @@ prepare_openwrt() {
         cd openwrt
         OPENWRT_DIR="$(pwd)"
     fi
+
+    # Pin to a specific OpenWrt commit if OPENWRT_SHA is set
+    if [ -n "$OPENWRT_SHA" ]; then
+        echo "=== Pinning OpenWrt to $OPENWRT_SHA ==="
+        git fetch --depth=100 origin "$OPENWRT_SHA"
+        git checkout "$OPENWRT_SHA"
+    elif [ -z "${GITHUB_ACTIONS:-}" ]; then
+        # Local build without pin: pull latest
+        git fetch origin "$OPENWRT_BRANCH" --depth=1
+        git checkout "$OPENWRT_BRANCH"
+        git pull origin "$OPENWRT_BRANCH" || true
+    fi
 }
 
 merge_pr_and_fix_caldata() {
     echo ""
     echo "=== Applying PR #21495 (ath11k smallbuffers + PZ-L8 WiFi) ==="
 
-    # We need enough history for git merge to find a merge base.
-    # In CI, fetch-depth:1 is insufficient, so we fetch the PR commit
-    # along with enough history (shallow since the PR is close to main).
+    git config user.email "builder@localhost"
+    git config user.name "Local Builder"
+
+    # Fetch enough history for merge (both SHAs pinned, so merge is deterministic)
     git fetch --depth=100 origin "$PR_21495_SHA" || {
         echo "ERROR: Failed to fetch PR commit $PR_21495_SHA"
         exit 1
     }
 
-    # Try merge first (works when enough history is available)
-    if git merge FETCH_HEAD --no-edit 2>/dev/null; then
-        echo "=== PR merged cleanly ==="
-    else
-        # Fall back to selective conflict resolution
-        echo "=== Merge conflicts detected ==="
-        git diff --name-only --diff-filter=U | while read -r conflicted; do
-            echo "  Resolving conflict: $conflicted (using ours)"
-            git checkout --ours "$conflicted"
-            git add "$conflicted"
-        done
-        git commit --no-edit --no-verify
-        echo "=== All conflicts resolved (using main version) ==="
-    fi
+    git merge FETCH_HEAD --no-edit || {
+        echo "ERROR: Merge conflict with PR #21495."
+        echo "This should not happen with pinned SHAs."
+        echo "Please check if OPENWRT_SHA or PR_21495_SHA needs updating."
+        exit 1
+    }
 
     # Reset caldata to upstream main version, then apply our own entries.
     # The PR's caldata additions break fix-caldata.sh, so we always
     # revert to main and re-apply via our script.
     CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-    # In a shallow clone, HEAD^ may not exist; use the working tree version
-    # if it looks clean (no cmcc,pz-l8 entries from a previous run).
-    if git show "HEAD^:$CALDATA" >/dev/null 2>&1; then
+    MERGE_BASE=$(git merge-base HEAD FETCH_HEAD 2>/dev/null || true)
+    if [ -n "$MERGE_BASE" ] && git show "$MERGE_BASE:$CALDATA" >/dev/null 2>&1; then
+        git show "$MERGE_BASE:$CALDATA" > "$CALDATA"
+    elif git show "HEAD^:$CALDATA" >/dev/null 2>&1; then
         git show "HEAD^:$CALDATA" > "$CALDATA"
-    elif ! grep -q 'cmcc,pz-l8' "$CALDATA" 2>/dev/null; then
-        echo "=== Caldata file is clean, using as-is ==="
-    else
-        # Shallow clone without parent: try merge-base, or reset manually
-        MERGE_BASE=$(git merge-base HEAD FETCH_HEAD 2>/dev/null)
-        if [ -n "$MERGE_BASE" ] && git show "$MERGE_BASE:$CALDATA" >/dev/null 2>&1; then
-            git show "$MERGE_BASE:$CALDATA" > "$CALDATA"
-        else
-            echo "WARNING: Cannot extract clean caldata from git history."
-            echo "         If fix-caldata.sh fails, the caldata may need manual cleanup."
-        fi
     fi
     echo "=== Caldata reset to upstream main version ==="
 
