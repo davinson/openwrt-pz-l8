@@ -232,12 +232,12 @@ variants/
   ap/
     build.config                # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
     etc/uci-defaults/
-      98-ap-mode-network         # AP network config (skip if hostname or password set)
-      99-add-luci-i18n           # Install LuCI language packs based on timezone
+      98-init-ap                 # Initial AP mode config (skip if hostname or password set)
+      99-install-packages        # Install extra packages
   router/
     build.config                # Router mode: full build config (target, WiFi, firewall, full LuCI)
     etc/uci-defaults/
-      99-add-luci-i18n           # Install LuCI language packs based on timezone
+      99-install-packages        # Install extra packages
 scripts/
   fix-caldata.sh                # Caldata fix for PR #21495 review feedback
 patches/
