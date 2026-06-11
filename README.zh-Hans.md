@@ -232,12 +232,10 @@ variants/
   ap/
     build.config                # AP 模式：完整构建配置（目标、WiFi、Mesh、精简 LuCI）
     etc/uci-defaults/
-      98-init-ap                 # 初始化 AP 模式配置（已设主机名或密码则跳过）
-      99-install-packages        # 安装额外软件包
+      99-init-ap                 # 初始化 AP 模式配置（已设主机名或密码则跳过）
   router/
     build.config                # 路由模式：完整构建配置（目标、WiFi、防火墙、完整 LuCI）
-    etc/uci-defaults/
-      99-install-packages        # 安装额外软件包
+    etc/uci-defaults/            # （空 — 无需首次启动脚本）
 scripts/
   fix-caldata.sh                # PR #21495 审查反馈的 Caldata 修正脚本
 patches/

@@ -232,12 +232,10 @@ variants/
   ap/
     build.config                # AP mode: full build config (target, WiFi, mesh, minimal LuCI)
     etc/uci-defaults/
-      98-init-ap                 # Initial AP mode config (skip if hostname or password set)
-      99-install-packages        # Install extra packages
+      99-init-ap                 # Initial AP mode config (skip if hostname or password set)
   router/
     build.config                # Router mode: full build config (target, WiFi, firewall, full LuCI)
-    etc/uci-defaults/
-      99-install-packages        # Install extra packages
+    etc/uci-defaults/            # (empty — no first-boot scripts needed)
 scripts/
   fix-caldata.sh                # Caldata fix for PR #21495 review feedback
 patches/
