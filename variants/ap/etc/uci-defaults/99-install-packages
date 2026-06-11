@@ -2,8 +2,9 @@
 
 apk update
 
-# Install LuCI language packs based on system timezone.
+# apk add luci
 
+# Install LuCI language packs based on system timezone.
 ZONENAME=$(uci -q get system.@system[0].zonename)
 case "$ZONENAME" in
     Asia/Shanghai)
