@@ -1,4 +1,7 @@
 #!/bin/sh
+
+apk update
+
 # Install LuCI language packs based on system timezone.
 
 ZONENAME=$(uci -q get system.@system[0].zonename)
