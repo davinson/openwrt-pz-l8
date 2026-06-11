@@ -23,14 +23,9 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: 'Variant to build'
+        description: 'Variant to build (leave empty for all: ap, router)'
         required: false
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - ap
-          - router
+        default: ''
       release_tag:
         description: 'Release tag (leave empty for no release)'
         required: false
@@ -46,8 +41,20 @@ env:
   DEVICE: cmcc_pz-l8
 
 jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check inputs
+        run: |
+          if [ -n "${{ inputs.release_tag }}" ] && [ -n "${{ inputs.variant }}" ]; then
+            echo "ERROR: Release builds require all variants (variant must be empty)."
+            exit 1
+          fi
+
   build:
     name: Build
+    needs: validate
     runs-on: ubuntu-22.04
     timeout-minutes: 720
 
