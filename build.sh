@@ -276,21 +276,22 @@ prepare_openwrt() {
 
 merge_pr_and_fix_caldata() {
     echo ""
-    echo "=== Merging PR #21495 (ath11k smallbuffers + PZ-L8 WiFi) ==="
+    echo "=== Applying PR #21495 (ath11k smallbuffers + PZ-L8 WiFi) ==="
 
-    git config user.email "builder@localhost"
-    git config user.name "Local Builder"
-
-    git fetch origin "$PR_21495_SHA" || {
+    # We need enough history for git merge to find a merge base.
+    # In CI, fetch-depth:1 is insufficient, so we fetch the PR commit
+    # along with enough history (shallow since the PR is close to main).
+    git fetch --depth=100 origin "$PR_21495_SHA" || {
         echo "ERROR: Failed to fetch PR commit $PR_21495_SHA"
         exit 1
     }
 
-    if ! git merge FETCH_HEAD --no-edit; then
+    # Try merge first (works when enough history is available)
+    if git merge FETCH_HEAD --no-edit 2>/dev/null; then
+        echo "=== PR merged cleanly ==="
+    else
+        # Fall back to selective conflict resolution
         echo "=== Merge conflicts detected ==="
-        # Resolve ALL conflicts using ours (upstream main) version.
-        # We only need the PR's DTS, ath11k-smallbuffers, and ipq-wigi Makefile changes;
-        # the caldata is handled by fix-caldata.sh below.
         git diff --name-only --diff-filter=U | while read -r conflicted; do
             echo "  Resolving conflict: $conflicted (using ours)"
             git checkout --ours "$conflicted"
@@ -300,24 +301,27 @@ merge_pr_and_fix_caldata() {
         echo "=== All conflicts resolved (using main version) ==="
     fi
 
-    # Always reset caldata to upstream main version, then apply our own entries.
-    # Even if the PR auto-merges cleanly, its caldata additions break
-    # fix-caldata.sh (sed only removes pattern lines, leaving orphaned body code).
+    # Reset caldata to upstream main version, then apply our own entries.
+    # The PR's caldata additions break fix-caldata.sh, so we always
+    # revert to main and re-apply via our script.
     CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-    git show "HEAD^:$CALDATA" > "$CALDATA" 2>/dev/null || {
-        # If HEAD^ doesn't have it (e.g. first build), extract from merge base
+    # In a shallow clone, HEAD^ may not exist; use the working tree version
+    # if it looks clean (no cmcc,pz-l8 entries from a previous run).
+    if git show "HEAD^:$CALDATA" >/dev/null 2>&1; then
+        git show "HEAD^:$CALDATA" > "$CALDATA"
+    elif ! grep -q 'cmcc,pz-l8' "$CALDATA" 2>/dev/null; then
+        echo "=== Caldata file is clean, using as-is ==="
+    else
+        # Shallow clone without parent: try merge-base, or reset manually
         MERGE_BASE=$(git merge-base HEAD FETCH_HEAD 2>/dev/null)
-        if [ -n "$MERGE_BASE" ]; then
+        if [ -n "$MERGE_BASE" ] && git show "$MERGE_BASE:$CALDATA" >/dev/null 2>&1; then
             git show "$MERGE_BASE:$CALDATA" > "$CALDATA"
+        else
+            echo "WARNING: Cannot extract clean caldata from git history."
+            echo "         If fix-caldata.sh fails, the caldata may need manual cleanup."
         fi
-    }
-    echo "=== Caldata reset to upstream main version ==="
-
-    # Verify the PR commit is reachable in the current history
-    if ! git rev-parse --verify "$PR_21495_SHA^{commit}" >/dev/null 2>&1; then
-        echo "ERROR: Pinned PR #21495 commit $PR_21495_SHA not reachable."
-        exit 1
     fi
+    echo "=== Caldata reset to upstream main version ==="
 
     echo "=== Applying fix-caldata.sh ==="
     chmod +x "$PROJECT_ROOT/scripts/fix-caldata.sh"

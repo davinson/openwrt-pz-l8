@@ -88,15 +88,14 @@ jobs:
           repository: openwrt/openwrt
           ref: main
           path: openwrt
-          fetch-depth: 100
+          fetch-depth: 1
 
       - name: Compute build signature
         id: sig
         run: |
           OPENWRT_SHA=$(cd openwrt && git rev-parse HEAD)
           REPO_SHA=$(git rev-parse HEAD)
-          VARIANT="${{ inputs.variant || 'all' }}"
-          SIG="${OPENWRT_SHA:0:12}-${REPO_SHA:0:12}-${VARIANT}"
+          SIG="${OPENWRT_SHA:0:12}-${REPO_SHA:0:12}"
           echo "key=$SIG" >> "$GITHUB_OUTPUT"
           echo "openwrt=${OPENWRT_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "repo=${REPO_SHA:0:12}" >> "$GITHUB_OUTPUT"
@@ -137,16 +136,16 @@ jobs:
             "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt" "$VARIANT"
           fi
 
-      - name: Show ccache stats
-        if: steps.artifact-cache.outputs.cache-hit != 'true'
-        run: ccache -s
-
-      - name: Save artifacts to cache
-        if: steps.artifact-cache.outputs.cache-hit != 'true'
+      - name: Save artifacts to cache (full build only)
+        if: steps.artifact-cache.outputs.cache-hit != 'true' && (inputs.variant == '' || inputs.variant == 'all')
         uses: actions/cache/save@v4
         with:
           path: artifacts/
           key: firmware-${{ steps.sig.outputs.key }}
+
+      - name: Show ccache stats
+        if: steps.artifact-cache.outputs.cache-hit != 'true'
+        run: ccache -s
 
       - name: Build summary
         run: |
