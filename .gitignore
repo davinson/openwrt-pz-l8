@@ -33,3 +33,5 @@ logs/
 *.tar.xz
 *.zip
 
+.gitmodules
+repo
