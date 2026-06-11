@@ -291,13 +291,9 @@ merge_pr_and_fix_caldata() {
         exit 1
     }
 
-    # Extract and apply PR changes (exclude caldata, handled by fix-caldata.sh)
-    git diff FETCH_HEAD^..FETCH_HEAD -- \
-        target/linux/qualcommax/dts/ \
-        package/kernel/mac80211/ \
-        package/firmware/ipq-wifi/ \
-        target/linux/qualcommax/image/ \
-    | git apply --3way || {
+    # Extract and apply all PR changes (including caldata, which fix-caldata.sh
+    # will then enhance with MAC/regdomain/macflag patches)
+    git diff FETCH_HEAD^..FETCH_HEAD | git apply --3way || {
         echo "ERROR: Failed to apply PR #21495 patches."
         echo "This may indicate a conflict with the current OpenWrt version."
         echo "Please check if OPENWRT_SHA or PR_21495_SHA needs updating."
@@ -306,8 +302,7 @@ merge_pr_and_fix_caldata() {
 
     echo "=== PR #21495 patches applied ==="
 
-    # Apply fix-caldata.sh to insert our caldata extraction entries.
-    # We don't use the PR's caldata additions (they break fix-caldata.sh).
+    # Enhance caldata entries added by PR with MAC/regdomain/macflag patches.
     CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
     echo "=== Applying fix-caldata.sh ==="
     chmod +x "$PROJECT_ROOT/scripts/fix-caldata.sh"
