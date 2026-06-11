@@ -287,13 +287,31 @@ merge_pr_and_fix_caldata() {
     }
 
     if ! git merge FETCH_HEAD --no-edit; then
-        echo "=== Merge conflicts detected (expected for caldata) ==="
-        CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-        git checkout --ours "$CALDATA"
-        git add "$CALDATA"
+        echo "=== Merge conflicts detected ==="
+        # Resolve ALL conflicts using ours (upstream main) version.
+        # We only need the PR's DTS, ath11k-smallbuffers, and ipq-wigi Makefile changes;
+        # the caldata is handled by fix-caldata.sh below.
+        git diff --name-only --diff-filter=U | while read -r conflicted; do
+            echo "  Resolving conflict: $conflicted (using ours)"
+            git checkout --ours "$conflicted"
+            git add "$conflicted"
+        done
         git commit --no-edit --no-verify
-        echo "=== Caldata conflict resolved (using main version) ==="
+        echo "=== All conflicts resolved (using main version) ==="
     fi
+
+    # Always reset caldata to upstream main version, then apply our own entries.
+    # Even if the PR auto-merges cleanly, its caldata additions break
+    # fix-caldata.sh (sed only removes pattern lines, leaving orphaned body code).
+    CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
+    git show "HEAD^:$CALDATA" > "$CALDATA" 2>/dev/null || {
+        # If HEAD^ doesn't have it (e.g. first build), extract from merge base
+        MERGE_BASE=$(git merge-base HEAD FETCH_HEAD 2>/dev/null)
+        if [ -n "$MERGE_BASE" ]; then
+            git show "$MERGE_BASE:$CALDATA" > "$CALDATA"
+        fi
+    }
+    echo "=== Caldata reset to upstream main version ==="
 
     # Verify the PR commit is reachable in the current history
     if ! git rev-parse --verify "$PR_21495_SHA^{commit}" >/dev/null 2>&1; then
@@ -302,7 +320,6 @@ merge_pr_and_fix_caldata() {
     fi
 
     echo "=== Applying fix-caldata.sh ==="
-    CALDATA=target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
     chmod +x "$PROJECT_ROOT/scripts/fix-caldata.sh"
     "$PROJECT_ROOT/scripts/fix-caldata.sh" "$CALDATA"
 }
