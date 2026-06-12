@@ -48,7 +48,7 @@ if [ -z "$DEFAULT_VARIANTS" ]; then
     exit 1
 fi
 
-PR_21495_SHA="d4286eec1828e4843bceaccc400846854fa46955"
+PR_21495_SHA="5e6237857bbce445a274185383b2fd8affb81e33"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
