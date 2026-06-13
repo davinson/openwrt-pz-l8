@@ -395,38 +395,32 @@ download_toolchain() {
     echo "Downloading $TOOLCHAIN_FILE ..."
     if curl -LO "${TOOLCHAIN_URL}${TOOLCHAIN_FILE}"; then
         echo "Extracting $TOOLCHAIN_FILE ..."
-        # Use zstd -d piped to tar for maximum compatibility
-        if zstd -d "$TOOLCHAIN_FILE" -o /tmp/toolchain.tar && tar -xf /tmp/toolchain.tar; then
-            rm -f "$TOOLCHAIN_FILE" /tmp/toolchain.tar
-            # List what was extracted to debug
-            echo "Extracted directories:"
-            ls -d */ 2>/dev/null | head -5 || echo "  (none at top level)"
-            # Find the extracted toolchain directory
-            EXTRACTED_TOOLCHAIN=$(find . -maxdepth 1 -type d -name "openwrt-toolchain-*" | head -1)
-            if [ -n "$EXTRACTED_TOOLCHAIN" ] && [ -d "$EXTRACTED_TOOLCHAIN/staging_dir" ]; then
+        # Extract to a temporary directory to avoid polluting the source tree
+        TMPDIR_TOOLCHAIN="$(mktemp -d)"
+        if zstd -d "$TOOLCHAIN_FILE" -o "$TMPDIR_TOOLCHAIN/toolchain.tar" && \
+           tar -xf "$TMPDIR_TOOLCHAIN/toolchain.tar" -C "$TMPDIR_TOOLCHAIN"; then
+            rm -f "$TOOLCHAIN_FILE" "$TMPDIR_TOOLCHAIN/toolchain.tar"
+            # The tar may have a wrapper dir (openwrt-toolchain-*/) or be flat (staging_dir/ at top level)
+            WRAPPER=$(find "$TMPDIR_TOOLCHAIN" -maxdepth 1 -type d -name "openwrt-toolchain-*" | head -1)
+            if [ -n "$WRAPPER" ]; then
+                SRC_STAGING="$WRAPPER/staging_dir"
+            else
+                SRC_STAGING="$TMPDIR_TOOLCHAIN/staging_dir"
+            fi
+            if [ -d "$SRC_STAGING" ] && [ -d "$SRC_STAGING/toolchain-"* ]; then
                 echo "=== Installing precompiled toolchain to staging_dir/ ==="
-                cp -a "$EXTRACTED_TOOLCHAIN/staging_dir/toolchain-"* staging_dir/
-                rm -rf "$EXTRACTED_TOOLCHAIN"
+                cp -a "$SRC_STAGING/toolchain-"* staging_dir/
                 echo "=== Precompiled toolchain installed ==="
             else
-                # Maybe the tar extracts directly to staging_dir/toolchain-*/
-                EXTRACTED_DIRECT=$(find . -maxdepth 2 -type d -path "*/staging_dir/toolchain-*" | head -1)
-                if [ -n "$EXTRACTED_DIRECT" ]; then
-                    TOOLCHAIN_DIR=$(dirname "$EXTRACTED_DIRECT")
-                    echo "=== Installing precompiled toolchain from $TOOLCHAIN_DIR ==="
-                    cp -a "$EXTRACTED_DIRECT" staging_dir/
-                    rm -rf "$TOOLCHAIN_DIR"
-                    echo "=== Precompiled toolchain installed ==="
-                else
-                    echo "WARNING: Extracted toolchain has unexpected structure, will compile from source"
-                    echo "Files in current dir:"
-                    ls -la | head -10
-                    rm -rf "$EXTRACTED_TOOLCHAIN"
-                fi
+                echo "WARNING: No toolchain found in extracted archive, will compile from source"
+                echo "Contents of $TMPDIR_TOOLCHAIN:"
+                ls "$TMPDIR_TOOLCHAIN/" | head -10
             fi
+            rm -rf "$TMPDIR_TOOLCHAIN"
         else
             echo "Failed to extract toolchain, will compile from source"
-            rm -f "$TOOLCHAIN_FILE" /tmp/toolchain.tar
+            rm -f "$TOOLCHAIN_FILE" "$TMPDIR_TOOLCHAIN/toolchain.tar"
+            rm -rf "$TMPDIR_TOOLCHAIN"
         fi
     else
         echo "Failed to download toolchain, will compile from source"
