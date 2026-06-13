@@ -52,7 +52,7 @@ PR_21495_SHA="5e6237857bbce445a274185383b2fd8affb81e33"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
-OPENWRT_SHA="bcfe1855bd49b53d6bd1121bca1c8638b74a29d0"  # Bisect midpoint (pos 78/156), kernel 6.12.80
+OPENWRT_SHA="155c610962af87d6cbb3773c2a3eb26655387e57"  # Bisect midpoint (pos 39/79), kernel 6.12.80
 
 # ── Defaults ─────────────────────────────────────────────────────────────
 VARIANTS="${DEFAULT_VARIANTS}"
