@@ -400,21 +400,25 @@ download_toolchain() {
         if zstd -d "$TOOLCHAIN_FILE" -o "$TMPDIR_TOOLCHAIN/toolchain.tar" && \
            tar -xf "$TMPDIR_TOOLCHAIN/toolchain.tar" -C "$TMPDIR_TOOLCHAIN"; then
             rm -f "$TOOLCHAIN_FILE" "$TMPDIR_TOOLCHAIN/toolchain.tar"
-            # The tar may have a wrapper dir (openwrt-toolchain-*/) or be flat (staging_dir/ at top level)
+            # Find the toolchain directory: try both structures
+            # Structure A: openwrt-toolchain-*/toolchain-* (OpenWrt toolchain tar)
+            # Structure B: openwrt-toolchain-*/staging_dir/toolchain-*
+            # Structure C: (flat, no wrapper) staging_dir/toolchain-*
+            TOOLCHAIN_SRC=""
             WRAPPER=$(find "$TMPDIR_TOOLCHAIN" -maxdepth 1 -type d -name "openwrt-toolchain-*" | head -1)
-            if [ -n "$WRAPPER" ]; then
-                SRC_STAGING="$WRAPPER/staging_dir"
-            else
-                SRC_STAGING="$TMPDIR_TOOLCHAIN/staging_dir"
+            SEARCH_ROOT="${WRAPPER:-$TMPDIR_TOOLCHAIN}"
+            TOOLCHAIN_SRC=$(find "$SEARCH_ROOT" -maxdepth 2 -type d -name "toolchain-aarch64_*" | head -1)
+            if [ -z "$TOOLCHAIN_SRC" ]; then
+                TOOLCHAIN_SRC=$(find "$SEARCH_ROOT" -maxdepth 3 -type d -path "*/staging_dir/toolchain-*" | head -1)
             fi
-            if [ -d "$SRC_STAGING" ] && [ -d "$SRC_STAGING/toolchain-"* ]; then
+            if [ -n "$TOOLCHAIN_SRC" ]; then
                 echo "=== Installing precompiled toolchain to staging_dir/ ==="
-                cp -a "$SRC_STAGING/toolchain-"* staging_dir/
+                cp -a "$TOOLCHAIN_SRC" staging_dir/
                 echo "=== Precompiled toolchain installed ==="
             else
                 echo "WARNING: No toolchain found in extracted archive, will compile from source"
-                echo "Contents of $TMPDIR_TOOLCHAIN:"
-                ls "$TMPDIR_TOOLCHAIN/" | head -10
+                echo "Top-level contents:"
+                ls "$SEARCH_ROOT/" | head -10
             fi
             rm -rf "$TMPDIR_TOOLCHAIN"
         else
