@@ -176,7 +176,7 @@ jobs:
       - name: Build variants
         run: |
           chmod +x "$GITHUB_WORKSPACE/build.sh"
-          "$GITHUB_WORKSPACE/build.sh" -c on -k "$GITHUB_WORKSPACE/openwrt"
+          "$GITHUB_WORKSPACE/build.sh" -c on
 
       - name: Save artifacts to cache
         uses: actions/cache/save@v4
