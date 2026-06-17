@@ -52,7 +52,7 @@ PR_21495_SHA="5e6237857bbce445a274185383b2fd8affb81e33"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
-OPENWRT_SHA=""  # Set to a pinned commit SHA to lock the OpenWrt version. Leave empty to track main HEAD.
+OPENWRT_SHA="4a0e6aa95c122cb33c7828fd27ea0dbf56abca5c"
 
 # ── Defaults ─────────────────────────────────────────────────────────────
 VARIANTS="${DEFAULT_VARIANTS}"
@@ -263,22 +263,19 @@ prepare_openwrt() {
     else
         echo "=== Cloning OpenWrt ==="
         cd "$PROJECT_ROOT"
+        # Preserve dl/ cache if it exists (restored by CI cache step)
+        [ -d openwrt/dl ] && mv openwrt/dl /tmp/openwrt-dl-backup
+        rm -rf openwrt
         git clone --depth 1 -b "$OPENWRT_BRANCH" "$OPENWRT_REPO" openwrt
+        [ -d /tmp/openwrt-dl-backup ] && mv /tmp/openwrt-dl-backup openwrt/dl
         cd openwrt
         OPENWRT_DIR="$(pwd)"
     fi
 
-    # Pin to a specific OpenWrt commit if OPENWRT_SHA is set
-    if [ -n "$OPENWRT_SHA" ]; then
-        echo "=== Pinning OpenWrt to $OPENWRT_SHA ==="
-        git fetch --depth=1 origin "$OPENWRT_SHA"
-        git checkout "$OPENWRT_SHA"
-    elif [ -z "${GITHUB_ACTIONS:-}" ]; then
-        # Local build without pin: pull latest
-        git fetch origin "$OPENWRT_BRANCH" --depth=1
-        git checkout "$OPENWRT_BRANCH"
-        git pull origin "$OPENWRT_BRANCH" || true
-    fi
+    # Pin to a specific OpenWrt commit
+    echo "=== Pinning OpenWrt to $OPENWRT_SHA ==="
+    git fetch --depth=1 origin "$OPENWRT_SHA"
+    git checkout "$OPENWRT_SHA"
 }
 
 merge_pr_and_fix_caldata() {
