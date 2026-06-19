@@ -380,6 +380,44 @@ update_feeds() {
     ./scripts/feeds install -a
 }
 
+debug_openwrt_version() {
+    echo ""
+    echo "=== Debug: OpenWrt version tracking ==="
+    cd "$OPENWRT_DIR"
+    echo "  OPENWRT_SHA:   $OPENWRT_SHA"
+    echo "  HEAD:          $(git rev-parse HEAD)"
+    echo "  HEAD short:    $(git rev-parse --short HEAD)"
+    echo "  origin/$OPENWRT_BRANCH: $(git rev-parse "origin/$OPENWRT_BRANCH" 2>/dev/null || echo 'N/A')"
+    echo "  Detached:      $(git symbolic-ref HEAD 2>/dev/null || echo 'yes (detached)')"
+    echo ""
+
+    # Simulate getver.sh logic
+    REBOOT="a9653094e50a95e7fc039016a7e4e6e4c6f1fb1e"
+    BRANCH_NAME="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'detached')"
+    ORIGIN_REF="$(git rev-parse --verify --symbolic-full-name "${BRANCH_NAME}@{u}" 2>/dev/null || echo 'N/A')"
+    echo "  BRANCH_NAME:   $BRANCH_NAME"
+    echo "  ORIGIN_REF:    $ORIGIN_REF"
+
+    UPSTREAM_BASE="$(git merge-base HEAD "$ORIGIN_REF" 2>/dev/null || echo 'N/A')"
+    echo "  merge-base:    $UPSTREAM_BASE"
+
+    REV="$(git rev-list ${REBOOT}..HEAD 2>/dev/null | wc -l | awk '{print $1}')"
+    echo "  Rev count (REBOOT..HEAD): $REV"
+
+    if [ "$UPSTREAM_BASE" != "N/A" ]; then
+        UPSTREAM_REV="$(git rev-list ${REBOOT}..$UPSTREAM_BASE 2>/dev/null | wc -l | awk '{print $1}')"
+        UPSTREAM_SHORT="$(git log -n 1 --no-show-signature --format='%h' $UPSTREAM_BASE 2>/dev/null)"
+        echo "  getver.sh would produce: r${UPSTREAM_REV}+$((REV - UPSTREAM_REV))-${UPSTREAM_SHORT}"
+    else
+        echo "  getver.sh would produce: r0-$(git rev-parse --short HEAD)"
+    fi
+
+    echo "  getver.sh output: $(scripts/getver.sh 2>/dev/null || echo 'N/A')"
+    echo ""
+
+    cd "$PROJECT_ROOT"
+}
+
 download_toolchain() {
     echo ""
     echo "=== Trying precompiled toolchain ==="
@@ -559,6 +597,7 @@ main() {
     download_bdf_files
     setup_ccache
     update_feeds
+    debug_openwrt_version
     download_toolchain
     build_variants
 
