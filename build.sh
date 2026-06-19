@@ -417,7 +417,6 @@ debug_openwrt_version() {
     echo "  getver.sh output: $(scripts/getver.sh 2>/dev/null || echo 'N/A')"
     echo ""
 
-    cd "$PROJECT_ROOT"
     set -e
 }
 
