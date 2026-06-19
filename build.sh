@@ -231,7 +231,7 @@ show_info() {
     echo "  Disk available:$(df -h / | awk 'NR==2{print " "$4}')"
     case "$(uname -s)" in
         Darwin) echo "  Memory:$(sysctl -n hw.memsize 2>/dev/null | awk '{printf " %.0f GB", $1/1024/1024/1024}')" ;;
-        *)      echo "  Memory:$(free -h | awk '/^Mem:/{print " "$2} total, "$7" available}')" ;;
+        *)      echo "  Memory:$(free -h | awk '/^Mem:/{print " "$2" total, "$7" available}')" ;;
     esac
     echo ""
 }
@@ -266,7 +266,8 @@ prepare_openwrt() {
         # Preserve dl/ cache if it exists (restored by CI cache step)
         [ -d openwrt/dl ] && mv openwrt/dl /tmp/openwrt-dl-backup
         rm -rf openwrt
-        git clone --depth 1 -b "$OPENWRT_BRANCH" "$OPENWRT_REPO" openwrt
+        # Full clone (no --depth) so merge-base works for three-dot PR diff
+        git clone -b "$OPENWRT_BRANCH" "$OPENWRT_REPO" openwrt
         [ -d /tmp/openwrt-dl-backup ] && mv /tmp/openwrt-dl-backup openwrt/dl
         cd openwrt
         OPENWRT_DIR="$(pwd)"
@@ -274,7 +275,7 @@ prepare_openwrt() {
 
     # Pin to a specific OpenWrt commit
     echo "=== Pinning OpenWrt to $OPENWRT_SHA ==="
-    git fetch --depth=1 origin "$OPENWRT_SHA"
+    git fetch origin "$OPENWRT_SHA"
     git checkout "$OPENWRT_SHA"
 }
 
@@ -282,15 +283,16 @@ merge_pr_and_fix_caldata() {
     echo ""
     echo "=== Applying PR #21495 (ath11k smallbuffers + PZ-L8 WiFi) ==="
 
-    # Fetch the PR commit and its parent (needed for git diff and --3way merge)
-    git fetch --depth=2 origin "$PR_21495_SHA" || {
+    # Fetch the PR commit (full history available since prepare_openwrt does full clone)
+    git fetch origin "$PR_21495_SHA" || {
         echo "ERROR: Failed to fetch PR commit $PR_21495_SHA"
         exit 1
     }
 
-    # Extract and apply all PR changes (including caldata, which fix-caldata.sh
-    # will then enhance with MAC/regdomain/macflag patches)
-    if ! git diff FETCH_HEAD^..FETCH_HEAD | git apply --3way; then
+    # Use three-dot diff to extract only PR #21495's own changes.
+    # git diff origin/main...PR_21495_SHA = diff from merge-base to PR_21495_SHA,
+    # which excludes unrelated OpenWrt changes between OPENWRT_SHA and PR's base.
+    if ! git diff "origin/$OPENWRT_BRANCH"..."$PR_21495_SHA" | git apply --3way; then
         echo "WARNING: git apply encountered conflicts."
         # Find all .rej files
         REJ_FILES=$(git ls-files --others --exclude-standard "*.rej" 2>/dev/null)
@@ -461,8 +463,27 @@ build_variants() {
             exit 1
         fi
         cp "$VARIANT_DIR/build.config" .config
+
+        # Record requested packages before defconfig (it silently drops unknown ones)
+        REQUESTED_PKGS=$(grep '^CONFIG_PACKAGE_.*=y' .config | sed 's/=y//' | sort)
+
         make defconfig
         make defconfig
+
+        # Verify no requested packages were silently dropped
+        MISSING_PKGS=""
+        for pkg in $REQUESTED_PKGS; do
+            grep -q "^${pkg}=y" .config || MISSING_PKGS="$MISSING_PKGS ${pkg#CONFIG_PACKAGE_}"
+        done
+        if [ -n "$MISSING_PKGS" ]; then
+            echo ""
+            echo "ERROR: The following packages in $VARIANT_DIR/build.config were not found:"
+            for pkg in $MISSING_PKGS; do
+                echo "  - $pkg"
+            done
+            echo "Please update the build config or the OpenWrt/feeds version."
+            exit 1
+        fi
 
         # 3. Download sources
         DL_START=$(date +%s)
