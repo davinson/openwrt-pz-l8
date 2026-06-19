@@ -231,7 +231,7 @@ show_info() {
     echo "  Disk available:$(df -h / | awk 'NR==2{print " "$4}')"
     case "$(uname -s)" in
         Darwin) echo "  Memory:$(sysctl -n hw.memsize 2>/dev/null | awk '{printf " %.0f GB", $1/1024/1024/1024}')" ;;
-        *)      echo "  Memory:$(free -h | awk '/^Mem:/{print " "$2} total, "$7" available}')" ;;
+        *)      echo "  Memory:$(free -h | awk '/^Mem:/{print " "$2" total, "$7" available}')" ;;
     esac
     echo ""
 }
@@ -383,6 +383,8 @@ update_feeds() {
 debug_openwrt_version() {
     echo ""
     echo "=== Debug: OpenWrt version tracking ==="
+    # Temporarily disable errexit/pipefail for git commands that may fail
+    set +e
     cd "$OPENWRT_DIR"
     echo "  OPENWRT_SHA:   $OPENWRT_SHA"
     echo "  HEAD:          $(git rev-parse HEAD)"
@@ -416,6 +418,7 @@ debug_openwrt_version() {
     echo ""
 
     cd "$PROJECT_ROOT"
+    set -e
 }
 
 download_toolchain() {
