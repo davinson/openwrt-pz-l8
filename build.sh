@@ -49,10 +49,11 @@ if [ -z "$DEFAULT_VARIANTS" ]; then
 fi
 
 PR_21495_SHA="bb1d6cf5472bf0a5e4ebe5f20bc03011122a5734"
+PR_22381_SHA="9a4dc0da41965b09b922761e572dff2a590a2319"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
-OPENWRT_SHA="a5c5ca0666533a0af027e73f80fbc94f21be54c3"
+OPENWRT_SHA="cc697093b8104029f559fc3258f46556a8066c13"
 
 # ── Defaults ─────────────────────────────────────────────────────────────
 VARIANTS="${DEFAULT_VARIANTS}"
@@ -360,6 +361,52 @@ merge_pr_21495() {
     echo "=== PR #21495 patches applied ==="
 }
 
+apply_pr_22381() {
+    echo ""
+    echo "=== Applying PR #22381 (DWMAC + UNIPHY PCS + PPE + EDMA rework) ==="
+
+    # Fetch the PR commit (full history available since prepare_openwrt does full clone)
+    git fetch origin "$PR_22381_SHA" || {
+        echo "::error::Failed to fetch PR commit $PR_22381_SHA"
+        exit 1
+    }
+
+    # Use three-dot diff to extract only PR #22381's own changes.
+    # git diff origin/main...PR_22381_SHA = diff from merge-base to PR_22381_SHA,
+    # which excludes unrelated OpenWrt changes between OPENWRT_SHA and PR's base.
+    #
+    # PR #22381 converts qualcommax/ipq50xx from SSDK to DWMAC + UNIPHY PCS stack:
+    #   - Drops qca-ssdk and qca-nss-dp packages
+    #   - Adds PPE, EDMA, UNIPHY PCS drivers
+    #   - Adds IPQ5018 DWMAC driver
+    #   - Renames DTS nodes: dp1/dp2 → gmac0/gmac1
+    #   - Includes 0740-* patches (GEPHY RX/TX clock enablement)
+    #
+    # No file exclusions needed - PR #22381 doesn't touch the ath11k caldata
+    # hotplug script (that's PR #21495's territory, handled separately).
+    if ! git diff "origin/$OPENWRT_BRANCH"..."$PR_22381_SHA" \
+            | git apply --3way; then
+        echo "::warning::git apply encountered conflicts."
+        REJ_FILES=$(git ls-files --others --exclude-standard "*.rej" 2>/dev/null)
+        if [ -z "$REJ_FILES" ]; then
+            REJ_FILES=$(find . -name "*.rej" -not -path "./.git/*" 2>/dev/null)
+        fi
+        if [ -n "$REJ_FILES" ]; then
+            echo "::error::PR #22381 apply conflicts detected:$REJ_FILES"
+            echo "This usually means OpenWrt main has diverged from PR #22381's base."
+            echo "Options: rebase PR #22381 onto latest main, or update OPENWRT_SHA."
+            exit 1
+        fi
+        if ! git diff --quiet; then
+            echo "::error::Conflict detected but no .rej files. Manual intervention needed."
+            exit 1
+        fi
+        echo "No actual changes detected, continuing."
+    fi
+
+    echo "=== PR #22381 patches applied ==="
+}
+
 apply_openwrt_patches() {
     echo ""
     echo "=== Applying OpenWrt patches ==="
@@ -527,8 +574,9 @@ build_variants() {
         # CONFIG_PACKAGE_*=y and missed CONFIG_TARGET_*, CONFIG_KERNEL_*, =m,
         # value changes, and multi-target conflicts. Kconfig's own symbol table
         # is the authoritative source of truth.
-        # Note: must run AFTER prepare_openwrt + merge_pr_21495 +
-        # update_feeds, otherwise patch-introduced symbols would false-positive.
+        # Note: must run AFTER prepare_openwrt + apply_pr_22381 + merge_pr_21495 +
+        # apply_openwrt_patches + apply_kernel_patches + update_feeds,
+        # otherwise patch-introduced symbols would false-positive.
         #
         # IMPORTANT: pass these env vars ONLY to the defconfig invocation,
         # do NOT export them globally. Otherwise they leak into target/compile
@@ -661,6 +709,7 @@ main() {
     fi
 
     prepare_openwrt
+    apply_pr_22381
     merge_pr_21495
     apply_openwrt_patches
     apply_kernel_patches
