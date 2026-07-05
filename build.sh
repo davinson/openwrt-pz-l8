@@ -49,11 +49,11 @@ if [ -z "$DEFAULT_VARIANTS" ]; then
 fi
 
 PR_21495_SHA="bb1d6cf5472bf0a5e4ebe5f20bc03011122a5734"
-PR_22381_SHA="9a4dc0da41965b09b922761e572dff2a590a2319"
+PR_22381_SHA="1ef9819aaa61d87ae06ae653594b903d30f53afd"
 BDF_COMMIT="f7ad5fee1924efdb5d8b2d1bf95bd3867d22e701"
 OPENWRT_REPO="https://github.com/openwrt/openwrt.git"
 OPENWRT_BRANCH="main"
-OPENWRT_SHA="cc697093b8104029f559fc3258f46556a8066c13"
+OPENWRT_SHA="8614a2ba6885d0bec345a1010a0d59c64abe403c"
 
 # ── Defaults ─────────────────────────────────────────────────────────────
 VARIANTS="${DEFAULT_VARIANTS}"
