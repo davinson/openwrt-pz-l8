@@ -16,8 +16,8 @@ handling for both radios:
 
 Signed-off-by: CrazyBoyFeng <crazyboyfeng@gmail.com>
 
---- a/target/linux/qualcommax/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
-+++ b/target/linux/qualcommax/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
+--- a/target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
++++ b/target/linux/qualcommax/ipq50xx/base-files/etc/hotplug.d/firmware/11-ath11k-caldata
 @@ -48,6 +48,13 @@ case "$FIRMWARE" in
      xiaomi,ax6000)
          caldata_extract "0:art" 0x1000 0x20000
